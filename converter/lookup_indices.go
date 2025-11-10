@@ -4,15 +4,15 @@ import "gtfs-netex-converter/gtfs"
 
 // LookupIndices provides O(1) access to GTFS data
 type LookupIndices struct {
-	stopTimesByTripID    map[string][]gtfs.StopTime
-	tripsByRouteID       map[string][]gtfs.Trip
-	routesByID           map[string]*gtfs.Route
-	stopsByID            map[string]*gtfs.Stop
-	agenciesByID         map[string]*gtfs.Agency
-	calendarDatesByID    map[string][]gtfs.CalendarDate
-	transfersByStopID    map[string][]gtfs.Transfer
-	shapesByID           map[string][]gtfs.Shape
-	fareAttributesByID   map[string]*gtfs.FareAttribute
+	stopTimesByTripID  map[string][]gtfs.StopTime
+	tripsByRouteID     map[string][]gtfs.Trip
+	routesByID         map[string]*gtfs.Route
+	stopsByID          map[string]*gtfs.Stop
+	agenciesByID       map[string]*gtfs.Agency
+	calendarDatesByID  map[string][]gtfs.CalendarDate
+	transfersByStopID  map[string][]gtfs.Transfer
+	shapesByID         map[string][]gtfs.Shape
+	fareAttributesByID map[string]*gtfs.FareAttribute
 }
 
 // BuildLookupIndices builds all lookup indices from GTFS data

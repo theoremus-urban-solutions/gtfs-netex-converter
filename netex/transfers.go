@@ -2,11 +2,11 @@ package netex
 
 // Connection represents a Connection element for transfers
 type Connection struct {
-	ID                      string                `xml:"id,attr"`
-	Version                 string                `xml:"version,attr"`
-	From                    ConnectionEnd         `xml:"From"`
-	To                      ConnectionEnd         `xml:"To"`
-	TransferDuration        TransferDuration      `xml:"TransferDuration"`
+	ID               string           `xml:"id,attr"`
+	Version          string           `xml:"version,attr"`
+	From             ConnectionEnd    `xml:"From"`
+	To               ConnectionEnd    `xml:"To"`
+	TransferDuration TransferDuration `xml:"TransferDuration"`
 }
 
 // ConnectionEnd represents the From/To elements in a Connection
@@ -21,9 +21,9 @@ type TransferDuration struct {
 
 // InterchangeRule represents an InterchangeRule element
 type InterchangeRule struct {
-	ID               string `xml:"id,attr"`
-	Version          string `xml:"version,attr"`
-	RestrictionType  string `xml:"RestrictionType"`
+	ID              string `xml:"id,attr"`
+	Version         string `xml:"version,attr"`
+	RestrictionType string `xml:"RestrictionType"`
 }
 
 // Connections represents the connections element

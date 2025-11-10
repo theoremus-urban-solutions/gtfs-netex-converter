@@ -21,17 +21,17 @@ type LevelRef struct {
 
 // PathLink represents a PathLink element from GTFS pathways
 type PathLink struct {
-	ID                      string      `xml:"id,attr"`
-	Version                 string      `xml:"version,attr"`
-	From                    PlaceEnd    `xml:"From"`
-	To                      PlaceEnd    `xml:"To"`
-	TransitionType          string      `xml:"TransitionType"`
-	BothWays                bool        `xml:"BothWays"`
-	Distance                *float64    `xml:"Distance"`
-	TransferDuration        TransferDuration `xml:"TransferDuration"`
-	NumberOfSteps           *int        `xml:"NumberOfSteps"`
-	MaximumGradient         *float64    `xml:"MaximumGradient"`
-	MinimumWidth            *float64    `xml:"MinimumWidth"`
+	ID               string           `xml:"id,attr"`
+	Version          string           `xml:"version,attr"`
+	From             PlaceEnd         `xml:"From"`
+	To               PlaceEnd         `xml:"To"`
+	TransitionType   string           `xml:"TransitionType"`
+	BothWays         bool             `xml:"BothWays"`
+	Distance         *float64         `xml:"Distance"`
+	TransferDuration TransferDuration `xml:"TransferDuration"`
+	NumberOfSteps    *int             `xml:"NumberOfSteps"`
+	MaximumGradient  *float64         `xml:"MaximumGradient"`
+	MinimumWidth     *float64         `xml:"MinimumWidth"`
 }
 
 // PlaceEnd represents the From/To elements in a PathLink
@@ -52,18 +52,18 @@ type PathLinks struct {
 
 // Entrance represents an Entrance element (GTFS location_type=2)
 type Entrance struct {
-	ID              string      `xml:"id,attr"`
-	Version         string      `xml:"version,attr"`
-	Name            string      `xml:"Name"`
-	Centroid        Centroid    `xml:"Centroid"`
-	ParentSiteRef   PlaceRef    `xml:"ParentSiteRef"`
+	ID            string   `xml:"id,attr"`
+	Version       string   `xml:"version,attr"`
+	Name          string   `xml:"Name"`
+	Centroid      Centroid `xml:"Centroid"`
+	ParentSiteRef PlaceRef `xml:"ParentSiteRef"`
 }
 
 // BoardingPosition represents a BoardingPosition element (GTFS location_type=4)
 type BoardingPosition struct {
-	ID              string      `xml:"id,attr"`
-	Version         string      `xml:"version,attr"`
-	Name            string      `xml:"Name"`
-	Centroid        Centroid    `xml:"Centroid"`
-	ParentQuayRef   QuayRef     `xml:"ParentQuayRef"`
+	ID            string   `xml:"id,attr"`
+	Version       string   `xml:"version,attr"`
+	Name          string   `xml:"Name"`
+	Centroid      Centroid `xml:"Centroid"`
+	ParentQuayRef QuayRef  `xml:"ParentQuayRef"`
 }

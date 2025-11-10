@@ -11,12 +11,12 @@ type GeneralFrame struct {
 
 // DestinationDisplay represents a DestinationDisplay element
 type DestinationDisplay struct {
-	ID              string `xml:"id,attr"`
-	Version         string `xml:"version,attr"`
-	Name            string `xml:"Name"`
-	ShortName       string `xml:"ShortName"`
-	SideText        string `xml:"SideText"`
-	FrontText       string `xml:"FrontText"`
+	ID        string `xml:"id,attr"`
+	Version   string `xml:"version,attr"`
+	Name      string `xml:"Name"`
+	ShortName string `xml:"ShortName"`
+	SideText  string `xml:"SideText"`
+	FrontText string `xml:"FrontText"`
 }
 
 // DestinationDisplays represents the destinationDisplays element
@@ -32,11 +32,11 @@ type DestinationDisplayRef struct {
 
 // Block represents a Block element (vehicle block)
 type Block struct {
-	ID              string          `xml:"id,attr"`
-	Version         string          `xml:"version,attr"`
-	Name            string          `xml:"Name"`
-	Description     string          `xml:"Description"`
-	JourneyRefs     JourneyRefs     `xml:"journeys"`
+	ID          string      `xml:"id,attr"`
+	Version     string      `xml:"version,attr"`
+	Name        string      `xml:"Name"`
+	Description string      `xml:"Description"`
+	JourneyRefs JourneyRefs `xml:"journeys"`
 }
 
 // JourneyRefs represents journey references within a block

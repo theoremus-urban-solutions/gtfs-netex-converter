@@ -111,7 +111,7 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 					ID:      fmt.Sprintf("allowed_direction_%s_0", route.RouteID),
 					Version: "1",
 					DirectionRef: netex.DirectionRef{
-						Ref:     fmt.Sprintf("BG::Direction:direction_0::"),
+						Ref:     "BG::Direction:direction_0::",
 						Version: "1",
 					},
 				},
@@ -119,7 +119,7 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 					ID:      fmt.Sprintf("allowed_direction_%s_1", route.RouteID),
 					Version: "1",
 					DirectionRef: netex.DirectionRef{
-						Ref:     fmt.Sprintf("BG::Direction:direction_1::"),
+						Ref:     "BG::Direction:direction_1::",
 						Version: "1",
 					},
 				},
@@ -127,31 +127,12 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 		},
 	}
 
-	// Add optional fields if present
-	if route.RouteDesc != "" {
-		// Note: NeTEx doesn't have a direct Description field for Line
-		// Could be added to KeyList
-	}
-
-	if route.RouteURL != "" {
-		// Note: NeTEx doesn't have a direct URL field for Line
-		// Could be added to KeyList
-	}
-
-	if route.RouteColor != "" {
-		// Note: NeTEx has Colour field but it's not in our Line struct
-		// Could be added to KeyList
-	}
-
-	if route.RouteTextColor != "" {
-		// Note: NeTEx has TextColour field but it's not in our Line struct
-		// Could be added to KeyList
-	}
-
-	if route.RouteSortOrder != "" {
-		// Note: NeTEx has Order field but it's not in our Line struct
-		// Could be added to KeyList
-	}
+	// Note: Optional GTFS fields not mapped to NeTEx:
+	// - route_desc: No direct Description field in NeTEx Line (could use KeyList)
+	// - route_url: No direct URL field in NeTEx Line (could use KeyList)
+	// - route_color: Colour field exists but not in our Line struct
+	// - route_text_color: TextColour field exists but not in our Line struct
+	// - route_sort_order: Order field exists but not in our Line struct
 
 	return line
 }
@@ -160,13 +141,13 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 func (rc *RouteConverter) generateDirections() []netex.Direction {
 	directions := []netex.Direction{
 		{
-			ID:      fmt.Sprintf("BG::Direction:direction_0::"),
+			ID:      "BG::Direction:direction_0::",
 			Version: "1",
 			// Note: NeTEx Direction doesn't have a Name field in our struct
 			// Could be added to KeyList or extended struct
 		},
 		{
-			ID:      fmt.Sprintf("BG::Direction:direction_1::"),
+			ID:      "BG::Direction:direction_1::",
 			Version: "1",
 			// Note: NeTEx Direction doesn't have a Name field in our struct
 			// Could be added to KeyList or extended struct
@@ -259,7 +240,7 @@ func (rc *RouteConverter) convertToRoute(route gtfs.Route, gtfsData *GTFSData) (
 			Version: "1",
 		},
 		DirectionRef: netex.DirectionRef{
-			Ref:     fmt.Sprintf("BG::Direction:direction_0::"), // Default direction
+			Ref:     "BG::Direction:direction_0::", // Default direction
 			Version: "1",
 		},
 		PointsInSequence: netex.PointsInSequence{

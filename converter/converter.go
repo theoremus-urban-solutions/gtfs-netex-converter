@@ -139,7 +139,11 @@ func (c *Converter) loadCSVFile(filepath string, dataPtr interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	reader := csv.NewReader(file)
 	reader.FieldsPerRecord = -1 // Allow variable number of fields
@@ -472,7 +476,7 @@ func getInt(row []string, headerMap map[string]int, field string) int {
 			return 0
 		}
 		var result int
-		fmt.Sscanf(row[idx], "%d", &result)
+		_, _ = fmt.Sscanf(row[idx], "%d", &result)
 		return result
 	}
 	return 0
@@ -484,7 +488,7 @@ func getFloat64(row []string, headerMap map[string]int, field string) float64 {
 			return 0.0
 		}
 		var result float64
-		fmt.Sscanf(row[idx], "%f", &result)
+		_, _ = fmt.Sscanf(row[idx], "%f", &result)
 		return result
 	}
 	return 0.0
@@ -497,7 +501,7 @@ func getFloat64Ptr(row []string, headerMap map[string]int, field string) *float6
 			return nil
 		}
 		var result float64
-		fmt.Sscanf(row[idx], "%f", &result)
+		_, _ = fmt.Sscanf(row[idx], "%f", &result)
 		return &result
 	}
 	return nil
@@ -509,7 +513,7 @@ func getIntPtr(row []string, headerMap map[string]int, field string) *int {
 			return nil
 		}
 		var result int
-		fmt.Sscanf(row[idx], "%d", &result)
+		_, _ = fmt.Sscanf(row[idx], "%d", &result)
 		return &result
 	}
 	return nil
@@ -779,7 +783,7 @@ func (c *Converter) createServiceFrame() *netex.ServiceFrame {
 	connections, interchangeRules := c.createTransfers()
 
 	serviceFrame := &netex.ServiceFrame{
-		ID:             fmt.Sprintf("BG::ServiceFrame:SOFIA_SERVICE_F::"),
+		ID:             "BG::ServiceFrame:SOFIA_SERVICE_F::",
 		Version:        "1",
 		TypeOfFrameRef: netex.TypeOfFrameRef{Ref: "f:Service", VersionRef: "1.0"},
 		Directions: netex.Directions{
@@ -1161,9 +1165,9 @@ func normalizeGTFSClockTime(hms string) (string, int) {
 	hour := 0
 	minute := 0
 	second := 0
-	fmt.Sscanf(parts[0], "%d", &hour)
-	fmt.Sscanf(parts[1], "%d", &minute)
-	fmt.Sscanf(parts[2], "%d", &second)
+	_, _ = fmt.Sscanf(parts[0], "%d", &hour)
+	_, _ = fmt.Sscanf(parts[1], "%d", &minute)
+	_, _ = fmt.Sscanf(parts[2], "%d", &second)
 	dayOffset := hour / 24
 	hour = hour % 24
 	return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second), dayOffset

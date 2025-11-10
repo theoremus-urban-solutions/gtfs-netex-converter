@@ -16,12 +16,12 @@ const (
 
 // Constants for NeTEx versions and default values
 const (
-	NetExVersion       = "1"
-	NetExNamespace     = "http://www.netex.org.uk/netex"
-	DefaultDayPattern  = "1111100" // Monday-Friday
-	SecondsPerHour     = 3600
-	SecondsPerMinute   = 60
-	HoursPerDay        = 24
+	NetExVersion      = "1"
+	NetExNamespace    = "http://www.netex.org.uk/netex"
+	DefaultDayPattern = "1111100" // Monday-Friday
+	SecondsPerHour    = 3600
+	SecondsPerMinute  = 60
+	HoursPerDay       = 24
 )
 
 // Constants for time formats

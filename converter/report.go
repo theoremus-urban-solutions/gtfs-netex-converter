@@ -7,14 +7,14 @@ import (
 
 // ConversionReport contains comprehensive statistics and results from the conversion
 type ConversionReport struct {
-	Summary          ConversionSummary          `json:"summary"`
-	InputStatistics  InputStatistics            `json:"input_statistics"`
-	OutputStatistics OutputStatistics           `json:"output_statistics"`
-	Performance      PerformanceMetrics         `json:"performance"`
-	Validation       ValidationResults          `json:"validation"`
+	Summary          ConversionSummary             `json:"summary"`
+	InputStatistics  InputStatistics               `json:"input_statistics"`
+	OutputStatistics OutputStatistics              `json:"output_statistics"`
+	Performance      PerformanceMetrics            `json:"performance"`
+	Validation       ValidationResults             `json:"validation"`
 	EntityMapping    map[string]EntityMappingStats `json:"entity_mapping"`
-	Warnings         []Warning                  `json:"warnings"`
-	Errors           []ConversionError          `json:"errors"`
+	Warnings         []Warning                     `json:"warnings"`
+	Errors           []ConversionError             `json:"errors"`
 }
 
 // ConversionSummary provides high-level conversion results
@@ -31,64 +31,64 @@ type ConversionSummary struct {
 
 // InputStatistics tracks input GTFS data
 type InputStatistics struct {
-	FilesProcessed    int            `json:"files_processed"`
-	FilesSkipped      int            `json:"files_skipped"`
-	TotalRecords      int            `json:"total_records"`
-	RecordsByFile     map[string]int `json:"records_by_file"`
-	Agencies          int            `json:"agencies"`
-	Stops             int            `json:"stops"`
-	Routes            int            `json:"routes"`
-	Trips             int            `json:"trips"`
-	StopTimes         int            `json:"stop_times"`
-	CalendarDates     int            `json:"calendar_dates"`
-	Shapes            int            `json:"shapes"`
-	Transfers         int            `json:"transfers"`
-	FareAttributes    int            `json:"fare_attributes"`
-	Pathways          int            `json:"pathways"`
+	FilesProcessed int            `json:"files_processed"`
+	FilesSkipped   int            `json:"files_skipped"`
+	TotalRecords   int            `json:"total_records"`
+	RecordsByFile  map[string]int `json:"records_by_file"`
+	Agencies       int            `json:"agencies"`
+	Stops          int            `json:"stops"`
+	Routes         int            `json:"routes"`
+	Trips          int            `json:"trips"`
+	StopTimes      int            `json:"stop_times"`
+	CalendarDates  int            `json:"calendar_dates"`
+	Shapes         int            `json:"shapes"`
+	Transfers      int            `json:"transfers"`
+	FareAttributes int            `json:"fare_attributes"`
+	Pathways       int            `json:"pathways"`
 }
 
 // OutputStatistics tracks generated NeTEx entities
 type OutputStatistics struct {
-	TotalEntities     int            `json:"total_entities"`
-	EntitiesByType    map[string]int `json:"entities_by_type"`
-	Authorities       int            `json:"authorities"`
-	Operators         int            `json:"operators"`
-	StopPlaces        int            `json:"stop_places"`
-	Quays             int            `json:"quays"`
-	ScheduledStopPoints int          `json:"scheduled_stop_points"`
-	Lines             int            `json:"lines"`
-	Routes            int            `json:"routes"`
-	ServiceJourneys   int            `json:"service_journeys"`
-	JourneyPatterns   int            `json:"journey_patterns"`
-	DayTypes          int            `json:"day_types"`
-	OperatingPeriods  int            `json:"operating_periods"`
-	ServiceLinks      int            `json:"service_links"`
+	TotalEntities       int            `json:"total_entities"`
+	EntitiesByType      map[string]int `json:"entities_by_type"`
+	Authorities         int            `json:"authorities"`
+	Operators           int            `json:"operators"`
+	StopPlaces          int            `json:"stop_places"`
+	Quays               int            `json:"quays"`
+	ScheduledStopPoints int            `json:"scheduled_stop_points"`
+	Lines               int            `json:"lines"`
+	Routes              int            `json:"routes"`
+	ServiceJourneys     int            `json:"service_journeys"`
+	JourneyPatterns     int            `json:"journey_patterns"`
+	DayTypes            int            `json:"day_types"`
+	OperatingPeriods    int            `json:"operating_periods"`
+	ServiceLinks        int            `json:"service_links"`
 }
 
 // PerformanceMetrics tracks conversion performance
 type PerformanceMetrics struct {
-	TotalDurationSeconds     float64            `json:"total_duration_seconds"`
-	LoadingDurationSeconds   float64            `json:"loading_duration_seconds"`
-	IndexingDurationSeconds  float64            `json:"indexing_duration_seconds"`
-	ConversionDurationSeconds float64           `json:"conversion_duration_seconds"`
-	RecordsPerSecond         float64            `json:"records_per_second"`
-	MemoryUsageMB            float64            `json:"memory_usage_mb"`
-	PeakMemoryUsageMB        float64            `json:"peak_memory_usage_mb"`
-	StageTimings             map[string]float64 `json:"stage_timings"`
+	TotalDurationSeconds      float64            `json:"total_duration_seconds"`
+	LoadingDurationSeconds    float64            `json:"loading_duration_seconds"`
+	IndexingDurationSeconds   float64            `json:"indexing_duration_seconds"`
+	ConversionDurationSeconds float64            `json:"conversion_duration_seconds"`
+	RecordsPerSecond          float64            `json:"records_per_second"`
+	MemoryUsageMB             float64            `json:"memory_usage_mb"`
+	PeakMemoryUsageMB         float64            `json:"peak_memory_usage_mb"`
+	StageTimings              map[string]float64 `json:"stage_timings"`
 }
 
 // ValidationResults tracks validation issues
 type ValidationResults struct {
-	TotalIssues    int                       `json:"total_issues"`
-	IssuesBySeverity map[string]int          `json:"issues_by_severity"`
-	IssuesByType   map[string]int            `json:"issues_by_type"`
-	CriticalIssues []ValidationIssue         `json:"critical_issues"`
-	Warnings       []ValidationIssue         `json:"warnings"`
+	TotalIssues      int               `json:"total_issues"`
+	IssuesBySeverity map[string]int    `json:"issues_by_severity"`
+	IssuesByType     map[string]int    `json:"issues_by_type"`
+	CriticalIssues   []ValidationIssue `json:"critical_issues"`
+	Warnings         []ValidationIssue `json:"warnings"`
 }
 
 // ValidationIssue represents a validation problem
 type ValidationIssue struct {
-	Severity   string `json:"severity"`   // "info", "warning", "error", "critical"
+	Severity   string `json:"severity"` // "info", "warning", "error", "critical"
 	Code       string `json:"code"`
 	Message    string `json:"message"`
 	EntityType string `json:"entity_type"`
@@ -127,21 +127,21 @@ func (c *Converter) GenerateReport() *ConversionReport {
 
 	report := &ConversionReport{
 		Summary: ConversionSummary{
-			Status:          "success",
-			StartTime:       c.startTime,
-			EndTime:         c.endTime,
-			DurationSeconds: duration.Seconds(),
-			ParticipantRef:  c.config.ParticipantRef,
-			InputDirectory:  c.inputDir,
+			Status:           "success",
+			StartTime:        c.startTime,
+			EndTime:          c.endTime,
+			DurationSeconds:  duration.Seconds(),
+			ParticipantRef:   c.config.ParticipantRef,
+			InputDirectory:   c.inputDir,
 			ConverterVersion: "1.0.0",
 		},
-		InputStatistics: c.generateInputStatistics(),
+		InputStatistics:  c.generateInputStatistics(),
 		OutputStatistics: c.generateOutputStatistics(),
-		Performance: c.generatePerformanceMetrics(),
-		Validation: c.generateValidationResults(),
-		EntityMapping: c.generateEntityMapping(),
-		Warnings: c.collectWarnings(),
-		Errors: c.collectErrors(),
+		Performance:      c.generatePerformanceMetrics(),
+		Validation:       c.generateValidationResults(),
+		EntityMapping:    c.generateEntityMapping(),
+		Warnings:         c.collectWarnings(),
+		Errors:           c.collectErrors(),
 	}
 
 	return report
@@ -227,11 +227,11 @@ func (c *Converter) generatePerformanceMetrics() PerformanceMetrics {
 	}
 
 	return PerformanceMetrics{
-		TotalDurationSeconds:    duration,
-		RecordsPerSecond:        recordsPerSecond,
-		MemoryUsageMB:           0, // TODO: Implement memory tracking
-		PeakMemoryUsageMB:       0,
-		StageTimings:            make(map[string]float64),
+		TotalDurationSeconds: duration,
+		RecordsPerSecond:     recordsPerSecond,
+		MemoryUsageMB:        0, // TODO: Implement memory tracking
+		PeakMemoryUsageMB:    0,
+		StageTimings:         make(map[string]float64),
 	}
 }
 

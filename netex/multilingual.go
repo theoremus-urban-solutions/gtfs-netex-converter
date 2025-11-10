@@ -8,10 +8,10 @@ type MultilingualString struct {
 
 // AlternativeText represents alternative text in different languages
 type AlternativeText struct {
-	ID              string              `xml:"id,attr"`
-	AttributeName   string              `xml:"AttributeName"`
-	UseForLanguage  string              `xml:"UseForLanguage"`
-	Text            MultilingualString  `xml:"Text"`
+	ID             string             `xml:"id,attr"`
+	AttributeName  string             `xml:"AttributeName"`
+	UseForLanguage string             `xml:"UseForLanguage"`
+	Text           MultilingualString `xml:"Text"`
 }
 
 // AlternativeTexts represents a collection of alternative texts

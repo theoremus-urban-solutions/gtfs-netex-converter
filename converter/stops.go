@@ -108,21 +108,10 @@ func (sc *StopConverter) convertToStopPlace(stop gtfs.Stop) netex.StopPlace {
 		// Note: Additional properties like wheelchair_boarding could be added to KeyList
 	}
 
-	// Add optional fields if present
-	if stop.StopDesc != "" {
-		// Note: NeTEx StopPlace doesn't have a direct Description field in our struct
-		// Could be added to KeyList
-	}
-
-	if stop.StopURL != "" {
-		// Note: NeTEx StopPlace doesn't have a direct URL field in our struct
-		// Could be added to KeyList
-	}
-
-	if stop.ZoneID != "" {
-		// Note: NeTEx StopPlace doesn't have a direct ZoneID field in our struct
-		// Could be added to KeyList
-	}
+	// Note: Optional GTFS fields not mapped to NeTEx StopPlace:
+	// - stop_desc: No direct Description field in our struct (could use KeyList)
+	// - stop_url: No direct URL field in our struct (could use KeyList)
+	// - zone_id: No direct ZoneID field in our struct (could use KeyList)
 
 	return stopPlace
 }
@@ -163,16 +152,9 @@ func (sc *StopConverter) convertToQuay(stop gtfs.Stop) netex.Quay {
 		// Note: Additional properties could be added to KeyList
 	}
 
-	// Add optional fields if present
-	if stop.PlatformCode != "" {
-		// Note: NeTEx Quay doesn't have a direct PlatformCode field in our struct
-		// Could be added to KeyList
-	}
-
-	if stop.WheelchairBoarding == 1 {
-		// Note: NeTEx Quay doesn't have a direct WheelchairBoarding field in our struct
-		// Could be added to KeyList
-	}
+	// Note: Optional GTFS fields not mapped to NeTEx Quay:
+	// - platform_code: No direct PlatformCode field in our struct (could use KeyList)
+	// - wheelchair_boarding: No direct WheelchairBoarding field in our struct (could use KeyList)
 
 	return quay
 }

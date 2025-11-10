@@ -15,15 +15,15 @@ type Tariffs struct {
 
 // Tariff represents a Tariff element
 type Tariff struct {
-	ID                        string      `xml:"id,attr"`
-	Version                   string      `xml:"version,attr"`
-	Name                      string      `xml:"Name"`
-	Amount                    float64     `xml:"Amount"`
-	Currency                  string      `xml:"Currency"`
-	PaymentMethod             string      `xml:"PaymentMethod"`
-	MaximumNumberOfTransfers  int         `xml:"MaximumNumberOfTransfers"`
-	TransferDuration          string      `xml:"TransferDuration"`
-	OperatorRef               OperatorRef `xml:"OperatorRef"`
+	ID                       string      `xml:"id,attr"`
+	Version                  string      `xml:"version,attr"`
+	Name                     string      `xml:"Name"`
+	Amount                   float64     `xml:"Amount"`
+	Currency                 string      `xml:"Currency"`
+	PaymentMethod            string      `xml:"PaymentMethod"`
+	MaximumNumberOfTransfers int         `xml:"MaximumNumberOfTransfers"`
+	TransferDuration         string      `xml:"TransferDuration"`
+	OperatorRef              OperatorRef `xml:"OperatorRef"`
 }
 
 // TariffZoneRef represents a TariffZoneRef element

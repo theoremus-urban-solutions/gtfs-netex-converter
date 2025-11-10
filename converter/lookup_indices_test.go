@@ -120,7 +120,7 @@ func TestLookupIndicesPerformance(t *testing.T) {
 
 	// Generate test data
 	for i := 0; i < numTrips; i++ {
-		tripID := string(rune('A') + rune(i%26)) + string(rune('0') + rune(i/26))
+		tripID := string(rune('A')+rune(i%26)) + string(rune('0')+rune(i/26))
 		data.Trips = append(data.Trips, gtfs.Trip{
 			TripID:    tripID,
 			RouteID:   "route1",
@@ -143,7 +143,7 @@ func TestLookupIndicesPerformance(t *testing.T) {
 	t.Run("FastLookup", func(t *testing.T) {
 		// This should be O(1) with indices
 		for i := 0; i < 100; i++ {
-			tripID := string(rune('A') + rune(i%26)) + string(rune('0') + rune(i/26))
+			tripID := string(rune('A')+rune(i%26)) + string(rune('0')+rune(i/26))
 			stopTimes := indices.GetStopTimesByTripID(tripID)
 			if len(stopTimes) != stopsPerTrip {
 				t.Errorf("Expected %d stop times, got %d", stopsPerTrip, len(stopTimes))
