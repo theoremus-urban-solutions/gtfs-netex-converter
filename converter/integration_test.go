@@ -58,7 +58,7 @@ func TestEndToEndConversion(t *testing.T) {
 	})
 
 	t.Run("GeneratesReport", func(t *testing.T) {
-		conv.Convert(tmpDir)
+		_, _ = conv.Convert(tmpDir)
 		report := conv.GenerateReport()
 
 		if report == nil {
@@ -75,7 +75,7 @@ func TestEndToEndConversion(t *testing.T) {
 	})
 
 	t.Run("ReportJSONIsValid", func(t *testing.T) {
-		conv.Convert(tmpDir)
+		_, _ = conv.Convert(tmpDir)
 		report := conv.GenerateReport()
 
 		jsonData, err := report.ToJSON()
@@ -98,7 +98,7 @@ func TestConversionStatistics(t *testing.T) {
 	}
 
 	conv := NewConverter(config)
-	conv.Convert(tmpDir)
+	_, _ = conv.Convert(tmpDir)
 
 	stats := conv.GetStats()
 
@@ -278,7 +278,7 @@ func createLargerGTFS(t *testing.T, dir string) {
 }
 
 func writeFile(t *testing.T, path, content string) {
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("Failed to write test file %s: %v", path, err)
 	}
 }

@@ -44,7 +44,7 @@ func main() {
 	// Create output directory if needed
 	outputDir := filepath.Dir(*outputFile)
 	if outputDir != "." && outputDir != "" {
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
+		if err := os.MkdirAll(outputDir, 0750); err != nil {
 			log.Fatalf("Error: Failed to create output directory: %v", err)
 		}
 	}
@@ -85,7 +85,7 @@ func main() {
 
 	// Write output file
 	xmlOutput := xml.Header + string(xmlData)
-	if err := os.WriteFile(*outputFile, []byte(xmlOutput), 0644); err != nil {
+	if err := os.WriteFile(*outputFile, []byte(xmlOutput), 0600); err != nil {
 		log.Fatalf("Failed to write output file: %v", err)
 	}
 
@@ -94,8 +94,8 @@ func main() {
 	report.Summary.OutputFile = *outputFile
 
 	// Output report based on format
-	shouldOutputText := *reportFormat == "text" || *reportFormat == "both" || (*reportFormat != "json" && *reportFile == "")
-	shouldOutputJSON := *reportFormat == "json" || *reportFormat == "both" || *reportFile != ""
+	shouldOutputText := *reportFormat == converter.ReportFormatText || *reportFormat == converter.ReportFormatBoth || (*reportFormat != converter.ReportFormatJSON && *reportFile == "")
+	shouldOutputJSON := *reportFormat == converter.ReportFormatJSON || *reportFormat == converter.ReportFormatBoth || *reportFile != ""
 
 	// Text output (console or verbose)
 	if shouldOutputText && *verbose {
@@ -115,7 +115,7 @@ func main() {
 			log.Fatalf("Failed to generate JSON report: %v", err)
 		}
 
-		if err := os.WriteFile(*reportFile, jsonData, 0644); err != nil {
+		if err := os.WriteFile(*reportFile, jsonData, 0600); err != nil {
 			log.Fatalf("Failed to write report file: %v", err)
 		}
 

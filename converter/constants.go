@@ -35,3 +35,33 @@ const (
 const (
 	IDHashLength = 8
 )
+
+// Constants for transport modes
+const (
+	TransportModeRail     = "rail"
+	TransportModeBus      = "bus"
+	TransportModeCableway = "cableway"
+)
+
+// Constants for stop place types
+const (
+	StopPlaceTypeBusStop = "busStop"
+)
+
+// Constants for durations
+const (
+	DurationZero = "PT0M"
+)
+
+// Constants for date formats
+const (
+	DateMin = "0000-01-01"
+	DateMax = "9999-12-31"
+)
+
+// Constants for report formats
+const (
+	ReportFormatJSON = "json"
+	ReportFormatText = "text"
+	ReportFormatBoth = "both"
+)

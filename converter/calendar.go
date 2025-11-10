@@ -38,7 +38,7 @@ func (cc *CalendarConverter) ConvertCalendar(calendarDates []gtfs.CalendarDate, 
 	for serviceID, pattern := range servicePatterns {
 		// Validate the pattern has valid dates
 		if pattern.StartDate == "" || pattern.EndDate == "" ||
-			pattern.StartDate == "9999-12-31" || pattern.EndDate == "0000-01-01" {
+			pattern.StartDate == DateMax || pattern.EndDate == DateMin {
 			fmt.Printf("Warning: Invalid pattern for service %s, using default\n", serviceID)
 			pattern = cc.createDefaultPattern(serviceID)
 		}
@@ -155,8 +155,8 @@ func (cc *CalendarConverter) inferPatternForService(serviceID string, dates []gt
 	}
 
 	// Find date range
-	minDate := "9999-12-31"
-	maxDate := "0000-01-01"
+	minDate := DateMax
+	maxDate := DateMin
 
 	for _, date := range dates {
 		if date.Date < minDate {
@@ -169,7 +169,7 @@ func (cc *CalendarConverter) inferPatternForService(serviceID string, dates []gt
 	}
 
 	// Validate that we found valid dates
-	if minDate == "9999-12-31" || maxDate == "0000-01-01" {
+	if minDate == DateMax || maxDate == DateMin {
 		// No valid dates found, use default pattern
 		return cc.createDefaultPattern(serviceID)
 	}
@@ -217,7 +217,7 @@ func (cc *CalendarConverter) createOperatingPeriod(serviceID string, pattern Ser
 	toDate := pattern.EndDate
 
 	// If dates are invalid, use current year
-	if fromDate == "" || fromDate == "9999-12-31" || toDate == "" || toDate == "0000-01-01" {
+	if fromDate == "" || fromDate == DateMax || toDate == "" || toDate == DateMin {
 		now := time.Now()
 		fromDate = fmt.Sprintf("%d-01-01", now.Year())
 		toDate = fmt.Sprintf("%d-12-31", now.Year())

@@ -188,7 +188,7 @@ func (sc *StopConverter) createStopAssignment(stop gtfs.Stop, stopPlace netex.St
 func (sc *StopConverter) getStopPlaceType(locationType int) string {
 	switch locationType {
 	case 0: // Stop/Platform
-		return "busStop"
+		return StopPlaceTypeBusStop
 	case 1: // Station
 		return "busStation"
 	case 2: // Entrance/Exit
@@ -198,7 +198,7 @@ func (sc *StopConverter) getStopPlaceType(locationType int) string {
 	case 4: // Boarding Area
 		return "boardingPosition"
 	default:
-		return "busStop"
+		return StopPlaceTypeBusStop
 	}
 }
 
@@ -206,7 +206,7 @@ func (sc *StopConverter) getStopPlaceType(locationType int) string {
 func (sc *StopConverter) getStopType(locationType int) string {
 	switch locationType {
 	case 0: // Stop/Platform
-		return "busStop"
+		return StopPlaceTypeBusStop
 	case 1: // Station
 		return "busStation"
 	case 2: // Entrance/Exit
@@ -216,7 +216,7 @@ func (sc *StopConverter) getStopType(locationType int) string {
 	case 4: // Boarding Area
 		return "boardingPosition"
 	default:
-		return "busStop"
+		return StopPlaceTypeBusStop
 	}
 }
 

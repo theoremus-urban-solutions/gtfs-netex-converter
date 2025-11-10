@@ -259,22 +259,22 @@ func (rc *RouteConverter) getTransportMode(routeType int) string {
 	case 1: // Metro
 		return "metro"
 	case 2: // Rail
-		return "rail"
+		return TransportModeRail
 	case 3: // Bus
-		return "bus"
+		return TransportModeBus
 	case 4: // Ferry
 		return "water"
 	case 5: // Cable car
-		return "cableway"
+		return TransportModeCableway
 	case 6: // Gondola
-		return "cableway"
+		return TransportModeCableway
 	case 7: // Funicular
 		return "funicular"
 	case 11: // Trolleybus
 		return "trolleyBus"
 	case 12: // Monorail
-		return "rail"
+		return TransportModeRail
 	default:
-		return "bus"
+		return TransportModeBus
 	}
 }

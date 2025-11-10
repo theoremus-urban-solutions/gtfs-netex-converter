@@ -1,7 +1,7 @@
 package converter
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // MD5 used for non-cryptographic ID generation only
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -135,7 +135,7 @@ func (c *Converter) loadGTFSData() error {
 
 // loadCSVFile loads a CSV file into the provided data slice
 func (c *Converter) loadCSVFile(filepath string, dataPtr interface{}) error {
-	file, err := os.Open(filepath)
+	file, err := os.Open(filepath) //nolint:gosec // filepath is controlled by application, not user input
 	if err != nil {
 		return err
 	}
@@ -828,7 +828,7 @@ func (c *Converter) createTransfers() (netex.Connections, netex.InterchangeRules
 		fromSSP := fmt.Sprintf("BG::ScheduledStopPoint:scheduled_stop_point_%s::", t.FromStopID)
 		toSSP := fmt.Sprintf("BG::ScheduledStopPoint:scheduled_stop_point_%s::", t.ToStopID)
 		conn := netex.Connection{
-			ID:      fmt.Sprintf("BG::Connection:CONN_%x::", md5.Sum([]byte(fromSSP+">"+toSSP))),
+			ID:      fmt.Sprintf("BG::Connection:CONN_%x::", md5.Sum([]byte(fromSSP+">"+toSSP))), //nolint:gosec // MD5 used for non-cryptographic ID generation
 			Version: "1",
 			From:    netex.ConnectionEnd{ScheduledStopPointRef: netex.ScheduledStopPointRef{Ref: fromSSP, Version: "1"}},
 			To:      netex.ConnectionEnd{ScheduledStopPointRef: netex.ScheduledStopPointRef{Ref: toSSP, Version: "1"}},
@@ -838,7 +838,7 @@ func (c *Converter) createTransfers() (netex.Connections, netex.InterchangeRules
 						mins := t.MinTransferTime / 60
 						return fmt.Sprintf("PT%dM", mins)
 					}
-					return "PT0M"
+					return DurationZero
 				}(),
 			},
 		}
@@ -857,7 +857,7 @@ func (c *Converter) createTransfers() (netex.Connections, netex.InterchangeRules
 			restriction = "minTime"
 		}
 		interchanges.InterchangeRule = append(interchanges.InterchangeRule, netex.InterchangeRule{
-			ID:              fmt.Sprintf("BG::InterchangeRule:IR_%x::", md5.Sum([]byte(fromSSP+">"+toSSP))),
+			ID:              fmt.Sprintf("BG::InterchangeRule:IR_%x::", md5.Sum([]byte(fromSSP+">"+toSSP))), //nolint:gosec // MD5 used for non-cryptographic ID generation
 			Version:         "1",
 			RestrictionType: restriction,
 		})
@@ -950,7 +950,7 @@ func (c *Converter) convertTripsToServiceJourneys() []netex.ServiceJourney {
 
 		// Limit the pattern key length to avoid XML truncation
 		// Use a hash of the stop sequence instead of the full sequence
-		stopSequenceHash := fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(stopSequence, "_"))))[:8]
+		stopSequenceHash := fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(stopSequence, "_"))))[:8] //nolint:gosec // MD5 used for non-cryptographic ID generation
 		patternKey := fmt.Sprintf("%s_%s", routeDirectionKey, stopSequenceHash)
 		createdPatterns[patternKey] = true
 
@@ -967,19 +967,20 @@ func (c *Converter) convertTripsToServiceJourneys() []netex.ServiceJourney {
 			}
 
 			// Set departure time for first stop, arrival time for last stop
-			if i == 0 {
+			switch {
+			case i == 0:
 				dep, depOff := normalizeGTFSClockTime(stopTime.DepartureTime)
 				passingTime.DepartureTime = dep
 				if depOff > 0 {
 					passingTime.DepartureDayOffset = depOff
 				}
-			} else if i == len(stopTimes)-1 {
+			case i == len(stopTimes)-1:
 				arr, arrOff := normalizeGTFSClockTime(stopTime.ArrivalTime)
 				passingTime.ArrivalTime = arr
 				if arrOff > 0 {
 					passingTime.ArrivalDayOffset = arrOff
 				}
-			} else {
+			default:
 				arr, arrOff := normalizeGTFSClockTime(stopTime.ArrivalTime)
 				dep, depOff := normalizeGTFSClockTime(stopTime.DepartureTime)
 				passingTime.ArrivalTime = arr
@@ -1046,7 +1047,7 @@ func (c *Converter) createServiceLinksFromPatterns(patterns []netex.ServiceJourn
 				continue
 			}
 			seen[key] = true
-			hash := fmt.Sprintf("%x", md5.Sum([]byte(key)))
+			hash := fmt.Sprintf("%x", md5.Sum([]byte(key))) //nolint:gosec // MD5 used for non-cryptographic ID generation
 			id := fmt.Sprintf("BG::ServiceLink:SL_%s::", hash)
 			link := netex.ServiceLink{
 				ID:           id,
@@ -1091,23 +1092,23 @@ func (c *Converter) getTransportModeFromType(routeType int) string {
 	case RouteTypeMetro:
 		return "metro"
 	case RouteTypeRail:
-		return "rail"
+		return TransportModeRail
 	case RouteTypeBus:
-		return "bus"
+		return TransportModeBus
 	case RouteTypeFerry:
 		return "water"
 	case RouteTypeCableTram:
-		return "cableway"
+		return TransportModeCableway
 	case RouteTypeAerialLift:
-		return "cableway"
+		return TransportModeCableway
 	case RouteTypeFunicular:
 		return "funicular"
 	case RouteTypeTrolleybus:
 		return "trolleyBus"
 	case RouteTypeMonorail:
-		return "rail"
+		return TransportModeRail
 	default:
-		return "bus"
+		return TransportModeBus
 	}
 }
 
@@ -1169,13 +1170,13 @@ func normalizeGTFSClockTime(hms string) (string, int) {
 	_, _ = fmt.Sscanf(parts[1], "%d", &minute)
 	_, _ = fmt.Sscanf(parts[2], "%d", &second)
 	dayOffset := hour / 24
-	hour = hour % 24
+	hour %= 24
 	return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second), dayOffset
 }
 
 func (c *Converter) calculateJourneyDuration(stopTimes []gtfs.StopTime) string {
 	if len(stopTimes) < 2 {
-		return "PT0M"
+		return DurationZero
 	}
 	// parse first dep and last arr in seconds, taking into account 24+ hours
 	parse := func(hms string) int {
@@ -1184,9 +1185,9 @@ func (c *Converter) calculateJourneyDuration(stopTimes []gtfs.StopTime) string {
 			return 0
 		}
 		h, m, s := 0, 0, 0
-		fmt.Sscanf(parts[0], "%d", &h)
-		fmt.Sscanf(parts[1], "%d", &m)
-		fmt.Sscanf(parts[2], "%d", &s)
+		_, _ = fmt.Sscanf(parts[0], "%d", &h)
+		_, _ = fmt.Sscanf(parts[1], "%d", &m)
+		_, _ = fmt.Sscanf(parts[2], "%d", &s)
 		return h*3600 + m*60 + s
 	}
 	first := stopTimes[0]
@@ -1204,7 +1205,7 @@ func (c *Converter) calculateJourneyDuration(stopTimes []gtfs.StopTime) string {
 	// format as ISO-8601 duration to minutes resolution
 	mins := dur / 60
 	hrs := mins / 60
-	mins = mins % 60
+	mins %= 60
 	return fmt.Sprintf("PT%dH%dM", hrs, mins)
 }
 
@@ -1287,7 +1288,7 @@ func (c *Converter) createServiceJourneyPatterns() []netex.ServiceJourneyPattern
 			// Create pattern key based on route, direction, and stop sequence
 			// Limit the pattern key length to avoid XML truncation
 			// Use a hash of the stop sequence instead of the full sequence
-			stopSequenceHash := fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(stopSequence, "_"))))[:8]
+			stopSequenceHash := fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(stopSequence, "_"))))[:8] //nolint:gosec // MD5 used for non-cryptographic ID generation
 			patternKey := fmt.Sprintf("%s_%s", routeDirectionKey, stopSequenceHash)
 			patternGroups[patternKey] = append(patternGroups[patternKey], trip)
 		}
