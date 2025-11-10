@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gtfs-netex-converter/converter"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/converter"
 )
 
 func main() {

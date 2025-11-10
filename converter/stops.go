@@ -3,8 +3,8 @@ package converter
 import (
 	"fmt"
 
-	"gtfs-netex-converter/gtfs"
-	"gtfs-netex-converter/netex"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/netex"
 )
 
 // StopConverter handles conversion of GTFS stops to NeTEx stop entities

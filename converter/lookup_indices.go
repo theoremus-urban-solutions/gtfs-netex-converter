@@ -1,6 +1,6 @@
 package converter
 
-import "gtfs-netex-converter/gtfs"
+import "github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
 
 // LookupIndices provides O(1) access to GTFS data
 type LookupIndices struct {

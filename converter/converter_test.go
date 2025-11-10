@@ -1,8 +1,9 @@
 package converter
 
 import (
-	"gtfs-netex-converter/gtfs"
 	"testing"
+
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
 )
 
 func TestNormalizeGTFSClockTime(t *testing.T) {

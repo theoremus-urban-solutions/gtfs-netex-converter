@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gtfs-netex-converter/gtfs"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
 )
 
 func TestGenerateReport(t *testing.T) {

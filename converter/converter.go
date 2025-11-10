@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gtfs-netex-converter/gtfs"
-	"gtfs-netex-converter/netex"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/netex"
 )
 
 // Converter represents the main GTFS to NeTEx converter

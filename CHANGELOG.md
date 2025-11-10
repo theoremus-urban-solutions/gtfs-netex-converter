@@ -245,10 +245,10 @@ When contributing to this project, please:
 
 ## Links
 
-- [Repository](https://github.com/your-org/gtfs-netex-converter)
+- [Repository](https://github.com/theoremus-urban-solutions/gtfs-netex-converter)
 - [GTFS Specification](https://gtfs.org/reference/static/)
 - [NeTEx Documentation](http://netex-cen.eu/)
 - [DATA4PT GTFS-NeTEx Mapping](https://data4pt.org/)
 
-[1.0.0]: https://github.com/your-org/gtfs-netex-converter/releases/tag/v1.0.0
-[Unreleased]: https://github.com/your-org/gtfs-netex-converter/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/theoremus-urban-solutions/gtfs-netex-converter/releases/tag/v1.0.0
+[Unreleased]: https://github.com/theoremus-urban-solutions/gtfs-netex-converter/compare/v1.0.0...HEAD

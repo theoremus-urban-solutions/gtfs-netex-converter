@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strconv"
 
-	"gtfs-netex-converter/gtfs"
-	"gtfs-netex-converter/netex"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/netex"
 )
 
 // RouteConverter handles conversion of GTFS routes to NeTEx lines

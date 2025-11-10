@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"gtfs-netex-converter/gtfs"
-	"gtfs-netex-converter/netex"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/gtfs"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/netex"
 )
 
 // CalendarConverter handles conversion of GTFS calendar data to NeTEx calendar entities
