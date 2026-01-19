@@ -153,7 +153,7 @@ func TestGetDepartureTime(t *testing.T) {
 	c := NewConverter(config)
 
 	t.Run("WithStopTimes", func(t *testing.T) {
-		stopTimes := []gtfs.StopTime{
+		stopTimes := []*gtfs.StopTime{
 			{DepartureTime: "08:30:00"},
 			{DepartureTime: "08:35:00"},
 		}
@@ -164,7 +164,7 @@ func TestGetDepartureTime(t *testing.T) {
 	})
 
 	t.Run("EmptyStopTimes", func(t *testing.T) {
-		stopTimes := []gtfs.StopTime{}
+		stopTimes := []*gtfs.StopTime{}
 		depTime := c.getDepartureTime(stopTimes)
 		if depTime != "" {
 			t.Errorf("Expected empty string, got %s", depTime)
@@ -181,7 +181,7 @@ func TestCalculateJourneyDuration(t *testing.T) {
 	c := NewConverter(config)
 
 	t.Run("ValidDuration", func(t *testing.T) {
-		stopTimes := []gtfs.StopTime{
+		stopTimes := []*gtfs.StopTime{
 			{DepartureTime: "08:00:00", ArrivalTime: "08:00:00"},
 			{DepartureTime: "08:30:00", ArrivalTime: "08:30:00"},
 		}
@@ -192,7 +192,7 @@ func TestCalculateJourneyDuration(t *testing.T) {
 	})
 
 	t.Run("LongDuration", func(t *testing.T) {
-		stopTimes := []gtfs.StopTime{
+		stopTimes := []*gtfs.StopTime{
 			{DepartureTime: "08:00:00", ArrivalTime: "08:00:00"},
 			{DepartureTime: "10:45:00", ArrivalTime: "10:45:00"},
 		}
@@ -203,7 +203,7 @@ func TestCalculateJourneyDuration(t *testing.T) {
 	})
 
 	t.Run("EmptyStopTimes", func(t *testing.T) {
-		stopTimes := []gtfs.StopTime{}
+		stopTimes := []*gtfs.StopTime{}
 		duration := c.calculateJourneyDuration(stopTimes)
 		if duration != "PT0M" {
 			t.Errorf("Expected PT0M, got %s", duration)

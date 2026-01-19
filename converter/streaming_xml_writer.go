@@ -11,9 +11,8 @@ import (
 
 // StreamingXMLWriter writes NeTEx XML output in streaming mode to reduce memory usage
 type StreamingXMLWriter struct {
-	output     io.Writer
-	encoder    *xml.Encoder
-	bufferSize int
+	output  io.Writer
+	encoder *xml.Encoder
 }
 
 // NewStreamingXMLWriter creates a new streaming XML writer
@@ -52,11 +51,13 @@ func (w *StreamingXMLWriter) WritePublicationDelivery(pd *netex.PublicationDeliv
 
 // WriteToFile writes the NeTEx data directly to a file in streaming mode
 func WriteToFile(filepath string, pd *netex.PublicationDelivery) error {
-	file, err := os.Create(filepath) //nolint:gosec // filepath is controlled by application
+	file, err := os.Create(filepath) //nolint:gosec // user input controlled
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	writer := NewStreamingXMLWriter(file)
 	if err := writer.WritePublicationDelivery(pd); err != nil {

@@ -35,7 +35,7 @@ type BatchResult struct {
 
 // ReadInBatches reads CSV file in batches and sends them through a channel
 func (sr *StreamingCSVReader) ReadInBatches() (<-chan BatchResult, error) {
-	file, err := os.Open(sr.filepath) //nolint:gosec // filepath is controlled by application
+	file, err := os.Open(sr.filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (sr *StreamingCSVReader) ReadInBatches() (<-chan BatchResult, error) {
 	// Read headers first
 	headers, err := reader.Read()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("failed to read headers: %w", err)
 	}
 
@@ -54,7 +54,9 @@ func (sr *StreamingCSVReader) ReadInBatches() (<-chan BatchResult, error) {
 
 	// Start goroutine to read batches
 	go func() {
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 		defer close(resultChan)
 
 		offset := 0
@@ -124,13 +126,15 @@ func (sr *StreamingCSVReader) ProcessBatches(processor func(headers []string, re
 	return nil
 }
 
-// CountRecords counts total records in CSV file without loading all into memory
+// CountRecordsInCSV counts total records in CSV file without loading all into memory
 func CountRecordsInCSV(filepath string) (int, error) {
-	file, err := os.Open(filepath) //nolint:gosec // filepath is controlled by application
+	file, err := os.Open(filepath) //nolint:gosec // filepath is controlled by application, not user input
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := csv.NewReader(file)
 	reader.FieldsPerRecord = -1
