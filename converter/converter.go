@@ -16,15 +16,16 @@ import (
 
 // Converter represents the main GTFS to NeTEx converter
 type Converter struct {
-	gtfsData    *GTFSData
-	netexData   *netex.PublicationDelivery
-	idMapper    *IDMapper
-	idGenerator *IDGenerator
-	config      *Config
-	lookupIndex *LookupIndices
-	inputDir    string
-	startTime   time.Time
-	endTime     time.Time
+	gtfsData      *GTFSData
+	netexData     *netex.PublicationDelivery
+	idMapper      *IDMapper
+	idGenerator   *IDGenerator
+	config        *Config
+	lookupIndex   *LookupIndices
+	memoryTracker *MemoryTracker
+	inputDir      string
+	startTime     time.Time
+	endTime       time.Time
 }
 
 // GTFSData holds all GTFS data loaded from files
@@ -52,16 +53,20 @@ type Config struct {
 	LocationSystem       string
 	GenerateFareFrame    bool
 	GenerateGeneralFrame bool
+	// Streaming configuration
+	EnableStreaming bool // Enable streaming mode to reduce memory usage
+	BatchSize       int  // Batch size for streaming (default: 10000)
 }
 
 // NewConverter creates a new converter instance
 func NewConverter(config *Config) *Converter {
 	return &Converter{
-		gtfsData:    &GTFSData{},
-		netexData:   &netex.PublicationDelivery{},
-		idMapper:    NewIDMapper(),
-		idGenerator: NewIDGenerator(config.ParticipantRef),
-		config:      config,
+		gtfsData:      &GTFSData{},
+		netexData:     &netex.PublicationDelivery{},
+		idMapper:      NewIDMapper(),
+		idGenerator:   NewIDGenerator(config.ParticipantRef),
+		config:        config,
+		memoryTracker: NewMemoryTracker(true), // Always enable memory tracking
 	}
 }
 
@@ -71,29 +76,42 @@ func (c *Converter) Convert(inputDir string) (*netex.PublicationDelivery, error)
 	fmt.Println("Starting GTFS to NeTEx conversion...")
 	c.inputDir = inputDir
 
+	// Sample initial memory
+	c.memoryTracker.Sample()
+
 	// Step 1: Load GTFS data
 	if err := c.loadGTFSData(); err != nil {
 		return nil, fmt.Errorf("failed to load GTFS data: %w", err)
 	}
+	c.memoryTracker.Sample()
+	fmt.Printf("Memory after loading GTFS data: %.2f MB (peak: %.2f MB)\n",
+		c.memoryTracker.GetCurrent(), c.memoryTracker.GetPeak())
 
 	// Step 2: Build lookup indices for O(1) access
 	fmt.Println("Building lookup indices...")
 	c.lookupIndex = BuildLookupIndices(c.gtfsData)
+	c.memoryTracker.Sample()
+	fmt.Printf("Memory after building indices: %.2f MB (peak: %.2f MB)\n",
+		c.memoryTracker.GetCurrent(), c.memoryTracker.GetPeak())
 
 	// Step 3: Generate missing entities
 	c.generateMissingEntities()
+	c.memoryTracker.Sample()
 
 	// Step 4: Create NeTEx structure
 	if err := c.createNeTExStructure(); err != nil {
 		return nil, fmt.Errorf("failed to create NeTEx structure: %w", err)
 	}
+	c.memoryTracker.Sample()
 
 	// Step 5: Organize into frames
 	c.organizeIntoFrames()
+	c.memoryTracker.Sample()
 
 	c.endTime = time.Now()
 	duration := c.endTime.Sub(c.startTime)
 	fmt.Printf("Conversion completed successfully in %.2f seconds!\n", duration.Seconds())
+	fmt.Printf("Peak memory usage: %.2f MB\n", c.memoryTracker.GetPeak())
 
 	return c.netexData, nil
 }
@@ -108,7 +126,6 @@ func (c *Converter) loadGTFSData() error {
 		"stops.txt":           &c.gtfsData.Stops,
 		"routes.txt":          &c.gtfsData.Routes,
 		"trips.txt":           &c.gtfsData.Trips,
-		"stop_times.txt":      &c.gtfsData.StopTimes,
 		"calendar_dates.txt":  &c.gtfsData.CalendarDates,
 		"shapes.txt":          &c.gtfsData.Shapes,
 		"transfers.txt":       &c.gtfsData.Transfers,
@@ -127,8 +144,21 @@ func (c *Converter) loadGTFSData() error {
 		}
 	}
 
-	fmt.Printf("Loaded GTFS data: %d agencies, %d stops, %d routes, %d trips\n",
-		len(c.gtfsData.Agencies), len(c.gtfsData.Stops), len(c.gtfsData.Routes), len(c.gtfsData.Trips))
+	// Handle stop_times separately - use streaming if enabled
+	stopTimesPath := filepath.Join(c.inputDir, "stop_times.txt")
+	if c.config.EnableStreaming {
+		fmt.Println("Loading stop_times in streaming mode...")
+		if err := c.loadStopTimesStreaming(stopTimesPath); err != nil {
+			fmt.Printf("Warning: Could not load stop_times.txt: %v\n", err)
+		}
+	} else {
+		if err := c.loadCSVFile(stopTimesPath, &c.gtfsData.StopTimes); err != nil {
+			fmt.Printf("Warning: Could not load stop_times.txt: %v\n", err)
+		}
+	}
+
+	fmt.Printf("Loaded GTFS data: %d agencies, %d stops, %d routes, %d trips, %d stop_times\n",
+		len(c.gtfsData.Agencies), len(c.gtfsData.Stops), len(c.gtfsData.Routes), len(c.gtfsData.Trips), len(c.gtfsData.StopTimes))
 
 	return nil
 }
@@ -193,6 +223,39 @@ func (c *Converter) loadCSVFile(filepath string, dataPtr interface{}) error {
 	}
 
 	fmt.Printf("Loaded %d records from %s\n", len(dataRows), filepath)
+	return nil
+}
+
+// loadStopTimesStreaming loads stop_times in streaming mode to reduce memory usage
+func (c *Converter) loadStopTimesStreaming(filepath string) error {
+	batchSize := c.config.BatchSize
+	if batchSize <= 0 {
+		batchSize = 10000 // Default batch size
+	}
+
+	reader := NewStreamingCSVReader(filepath, batchSize)
+	totalProcessed := 0
+
+	err := reader.ProcessBatches(func(headers []string, records [][]string, offset int) error {
+		// Parse this batch of stop times
+		stopTimes := c.parseStopTimes(headers, records)
+
+		// Append to main slice
+		c.gtfsData.StopTimes = append(c.gtfsData.StopTimes, stopTimes...)
+
+		totalProcessed += len(records)
+		if totalProcessed%50000 == 0 {
+			fmt.Printf("Loaded %d stop_times records...\n", totalProcessed)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Loaded %d stop_times records in streaming mode\n", totalProcessed)
 	return nil
 }
 
@@ -1146,7 +1209,7 @@ func (c *Converter) getRouteType(routeID string) int {
 	return RouteTypeBus // Default to bus
 }
 
-func (c *Converter) getDepartureTime(stopTimes []gtfs.StopTime) string {
+func (c *Converter) getDepartureTime(stopTimes []*gtfs.StopTime) string {
 	if len(stopTimes) > 0 {
 		return stopTimes[0].DepartureTime
 	}
@@ -1174,7 +1237,7 @@ func normalizeGTFSClockTime(hms string) (string, int) {
 	return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second), dayOffset
 }
 
-func (c *Converter) calculateJourneyDuration(stopTimes []gtfs.StopTime) string {
+func (c *Converter) calculateJourneyDuration(stopTimes []*gtfs.StopTime) string {
 	if len(stopTimes) < 2 {
 		return DurationZero
 	}

@@ -25,6 +25,8 @@ func main() {
 		generateFareFrame    = flag.Bool("fare-frame", false, "Generate FareFrame (if fare data available)")
 		generateGeneralFrame = flag.Bool("general-frame", false, "Generate GeneralFrame (if infrastructure data available)")
 		verbose              = flag.Bool("verbose", false, "Enable verbose output")
+		enableStreaming      = flag.Bool("streaming", false, "Enable streaming mode to reduce memory usage (recommended for large GTFS files)")
+		batchSize            = flag.Int("batch-size", 10000, "Batch size for streaming mode")
 	)
 
 	flag.Parse()
@@ -68,6 +70,8 @@ func main() {
 		LocationSystem:       *locationSystem,
 		GenerateFareFrame:    *generateFareFrame,
 		GenerateGeneralFrame: *generateGeneralFrame,
+		EnableStreaming:      *enableStreaming,
+		BatchSize:            *batchSize,
 	}
 
 	// Create and run converter
@@ -78,15 +82,26 @@ func main() {
 	}
 
 	// Generate XML output
-	xmlData, err := xml.MarshalIndent(netexData, "", "  ")
-	if err != nil {
-		log.Fatalf("Failed to marshal XML: %v", err)
-	}
+	if *enableStreaming {
+		// Use streaming XML writer to reduce memory usage
+		if *verbose {
+			fmt.Println("Writing XML output in streaming mode...")
+		}
+		if err := converter.WriteToFile(*outputFile, netexData); err != nil {
+			log.Fatalf("Failed to write output file: %v", err)
+		}
+	} else {
+		// Traditional approach - marshal all at once
+		xmlData, err := xml.MarshalIndent(netexData, "", "  ")
+		if err != nil {
+			log.Fatalf("Failed to marshal XML: %v", err)
+		}
 
-	// Write output file
-	xmlOutput := xml.Header + string(xmlData)
-	if err := os.WriteFile(*outputFile, []byte(xmlOutput), 0600); err != nil {
-		log.Fatalf("Failed to write output file: %v", err)
+		// Write output file
+		xmlOutput := xml.Header + string(xmlData)
+		if err := os.WriteFile(*outputFile, []byte(xmlOutput), 0600); err != nil {
+			log.Fatalf("Failed to write output file: %v", err)
+		}
 	}
 
 	// Generate comprehensive report

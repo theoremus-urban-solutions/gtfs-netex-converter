@@ -229,8 +229,8 @@ func (c *Converter) generatePerformanceMetrics() PerformanceMetrics {
 	return PerformanceMetrics{
 		TotalDurationSeconds: duration,
 		RecordsPerSecond:     recordsPerSecond,
-		MemoryUsageMB:        0, // TODO: Implement memory tracking
-		PeakMemoryUsageMB:    0,
+		MemoryUsageMB:        c.memoryTracker.GetCurrent(),
+		PeakMemoryUsageMB:    c.memoryTracker.GetPeak(),
 		StageTimings:         make(map[string]float64),
 	}
 }
