@@ -20,6 +20,7 @@ type Converter struct {
 	netexData     *netex.PublicationDelivery
 	idMapper      *IDMapper
 	idGenerator   *IDGenerator
+	orgIndex      *OrganisationIndex
 	config        *Config
 	lookupIndex   *LookupIndices
 	memoryTracker *MemoryTracker
@@ -619,14 +620,20 @@ func (c *Converter) createNeTExStructure() error {
 func (c *Converter) organizeIntoFrames() {
 	fmt.Println("Organizing into frames...")
 
+	// Organisations are derived from agency.txt; every frame and ref below uses them
+	c.orgIndex = NewOrganisationIndex(c.config.ParticipantRef, c.gtfsData.Agencies)
+
 	// Format current date properly
 	now := time.Now()
 	fromDate := now.Format("2006-01-02")
 	toDate := now.AddDate(1, 0, 0).Format("2006-01-02")
 
+	dataSource := c.orgIndex.DataSource()
+	responsibilitySet := c.orgIndex.ResponsibilitySet()
+
 	// Create CompositeFrame
 	compositeFrame := netex.CompositeFrame{
-		ID:      fmt.Sprintf("%s::CompositeFrame:SOFIA::", c.config.ParticipantRef),
+		ID:      c.orgIndex.FrameID("CompositeFrame"),
 		Version: "1",
 		ValidBetween: netex.ValidBetween{
 			FromDate: fromDate + "T00:00:00",
@@ -649,10 +656,10 @@ func (c *Converter) organizeIntoFrames() {
 				Ref: "BG",
 			},
 			DefaultDataSourceRef: netex.DefaultDataSourceRef{
-				Ref: "BG::DataSource:SOFIA_TRANSPORT::",
+				Ref: dataSource.ID,
 			},
 			DefaultResponsibilitySetRef: netex.DefaultResponsibilitySetRef{
-				Ref:     fmt.Sprintf("%s::ResponsibilitySet:SOFIA::", c.config.ParticipantRef),
+				Ref:     responsibilitySet.ID,
 				Version: "1",
 			},
 			DefaultLocale: netex.DefaultLocale{
@@ -663,67 +670,15 @@ func (c *Converter) organizeIntoFrames() {
 		},
 		Frames: netex.Frames{
 			ResourceFrame: &netex.ResourceFrame{
-				ID:      fmt.Sprintf("%s::ResourceFrame:SOFIA::", c.config.ParticipantRef),
+				ID:      c.orgIndex.FrameID("ResourceFrame"),
 				Version: "1",
 				TypeOfFrameRef: netex.TypeOfFrameRef{
 					Ref:        "BG::TypeOfFrame:NETEX_RESOURCE::",
 					VersionRef: "1.0",
 				},
-				DataSources: netex.DataSources{
-					DataSource: netex.DataSource{
-						ID:      "BG::DataSource:SOFIA_TRANSPORT::",
-						Version: "1",
-						Name:    "Sofia Transport",
-					},
-				},
-				ResponsibilitySets: netex.ResponsibilitySets{
-					ResponsibilitySet: netex.ResponsibilitySet{
-						ID:      fmt.Sprintf("%s::ResponsibilitySet:SOFIA::", c.config.ParticipantRef),
-						Version: "1",
-						Roles: netex.Roles{
-							ResponsibilityRoleAssignment: netex.ResponsibilityRoleAssignment{
-								ID:           "BG::ResponsibilityRoleAssignment:SOFIA::",
-								Version:      "1",
-								DataRoleType: "dataSource",
-								ResponsibleOrganisationRef: netex.ResponsibleOrganisationRef{
-									Ref: "BG::Authority:SOFIA_TRANSPORT::",
-								},
-							},
-						},
-					},
-				},
-				Organisations: netex.Organisations{
-					Authorities: []netex.Authority{
-						{
-							ID:         "BG::Authority:SOFIA_TRANSPORT::",
-							Version:    "1",
-							PublicCode: "SOFIA_TRANSPORT",
-							Name:       "Sofia Transport",
-							ShortName:  "Sofia Transport",
-							LegalName:  "Sofia Transport Authority",
-							ContactDetails: netex.ContactDetails{
-								Phone: "+359 2 123 4567",
-								Email: "info@sofiatransport.bg",
-								Url:   "https://www.sofiatransport.bg",
-							},
-							OrganisationType: "authority",
-						},
-					},
-					Operator: netex.Operator{
-						ID:         "BG::Operator:SOFIA_TRANSPORT::",
-						Version:    "1",
-						PublicCode: "SOFIA_TRANSPORT",
-						Name:       "Sofia Transport",
-						ShortName:  "Sofia Transport",
-						LegalName:  "Sofia Transport Operator",
-						ContactDetails: netex.ContactDetails{
-							Phone: "+359 2 123 4567",
-							Email: "info@sofiatransport.bg",
-							Url:   "https://www.sofiatransport.bg",
-						},
-						OrganisationType: "operator",
-					},
-				},
+				DataSources:        netex.DataSources{DataSource: dataSource},
+				ResponsibilitySets: netex.ResponsibilitySets{ResponsibilitySet: responsibilitySet},
+				Organisations:      c.orgIndex.Organisations(),
 			},
 			ServiceCalendarFrame: c.createServiceCalendarFrame(),
 			ServiceFrame:         c.createServiceFrame(),
@@ -802,7 +757,7 @@ func (c *Converter) createServiceCalendarFrame() *netex.ServiceCalendarFrame {
 	toDate := now.AddDate(1, 0, 0).Format("2006-01-02")
 
 	return &netex.ServiceCalendarFrame{
-		ID:      fmt.Sprintf("%s::ServiceCalendarFrame:SOFIA_CAL::", c.config.ParticipantRef),
+		ID:      c.orgIndex.FrameID("ServiceCalendarFrame"),
 		Version: "1",
 		TypeOfFrameRef: netex.TypeOfFrameRef{
 			Ref:        "f:ServiceCalendar",
@@ -829,11 +784,11 @@ func (c *Converter) createServiceCalendarFrame() *netex.ServiceCalendarFrame {
 // createServiceFrame creates the ServiceFrame
 func (c *Converter) createServiceFrame() *netex.ServiceFrame {
 	// Convert routes to lines
-	routeConverter := NewRouteConverter(c.idMapper)
+	routeConverter := NewRouteConverter(c.idMapper, c.orgIndex)
 	routeResult, _ := routeConverter.ConvertRoutes(c.gtfsData.Routes, c.gtfsData)
 
 	// Convert stops to scheduled stop points
-	stopConverter := NewStopConverter(c.idMapper)
+	stopConverter := NewStopConverter(c.idMapper, c.orgIndex)
 	stopResult, _ := stopConverter.ConvertStops(c.gtfsData.Stops)
 
 	// Create service journey patterns
@@ -846,7 +801,7 @@ func (c *Converter) createServiceFrame() *netex.ServiceFrame {
 	connections, interchangeRules := c.createTransfers()
 
 	serviceFrame := &netex.ServiceFrame{
-		ID:             "BG::ServiceFrame:SOFIA_SERVICE_F::",
+		ID:             c.orgIndex.FrameID("ServiceFrame"),
 		Version:        "1",
 		TypeOfFrameRef: netex.TypeOfFrameRef{Ref: "f:Service", VersionRef: "1.0"},
 		Directions: netex.Directions{
@@ -931,11 +886,11 @@ func (c *Converter) createTransfers() (netex.Connections, netex.InterchangeRules
 // createSiteFrame creates the SiteFrame
 func (c *Converter) createSiteFrame() *netex.SiteFrame {
 	// Convert stops to stop places and quays
-	stopConverter := NewStopConverter(c.idMapper)
+	stopConverter := NewStopConverter(c.idMapper, c.orgIndex)
 	stopResult, _ := stopConverter.ConvertStops(c.gtfsData.Stops)
 
 	return &netex.SiteFrame{
-		ID:      fmt.Sprintf("%s::SiteFrame:SOFIA::", c.config.ParticipantRef),
+		ID:      c.orgIndex.FrameID("SiteFrame"),
 		Version: "1",
 		TypeOfFrameRef: netex.TypeOfFrameRef{
 			Ref:        "BG::TypeOfFrame:NETEX_SITE::",
@@ -954,7 +909,7 @@ func (c *Converter) createTimetableFrame() *netex.TimetableFrame {
 	vehicleTypes := c.createVehicleTypes()
 
 	return &netex.TimetableFrame{
-		ID:      fmt.Sprintf("%s::TimetableFrame:SOFIA::", c.config.ParticipantRef),
+		ID:      c.orgIndex.FrameID("TimetableFrame"),
 		Version: "1",
 		TypeOfFrameRef: netex.TypeOfFrameRef{
 			Ref:        "BG::TypeOfFrame:NETEX_TIMETABLE::",

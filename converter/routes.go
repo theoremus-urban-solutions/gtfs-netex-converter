@@ -12,12 +12,14 @@ import (
 // RouteConverter handles conversion of GTFS routes to NeTEx lines
 type RouteConverter struct {
 	idMapper *IDMapper
+	orgIndex *OrganisationIndex
 }
 
 // NewRouteConverter creates a new route converter
-func NewRouteConverter(idMapper *IDMapper) *RouteConverter {
+func NewRouteConverter(idMapper *IDMapper, orgIndex *OrganisationIndex) *RouteConverter {
 	return &RouteConverter{
 		idMapper: idMapper,
+		orgIndex: orgIndex,
 	}
 }
 
@@ -72,6 +74,7 @@ type RouteConversionResult struct {
 // convertToLine converts a GTFS route to NeTEx Line
 func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 	lineID := fmt.Sprintf("BG::Line:line_%s::", route.RouteID)
+	orgs := rc.orgIndex.ForAgency(route.AgencyID)
 
 	line := netex.Line{
 		ID:            lineID,
@@ -82,7 +85,7 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 		PublicCode:    route.RouteShortName,
 		PrivateCode:   route.RouteID,
 		AuthorityRef: netex.AuthorityRef{
-			Ref:     "BG::Authority:SOFIA_TRANSPORT::",
+			Ref:     orgs.AuthorityID,
 			Version: "1",
 		},
 		KeyList: netex.KeyList{
@@ -93,7 +96,7 @@ func (rc *RouteConverter) convertToLine(route gtfs.Route) netex.Line {
 		},
 		AdditionalOperators: netex.AdditionalOperators{
 			OperatorRef: netex.OperatorRef{
-				Ref:     "BG::Operator:SOFIA_TRANSPORT::",
+				Ref:     orgs.OperatorID,
 				Version: "1",
 			},
 		},

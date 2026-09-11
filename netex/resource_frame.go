@@ -50,7 +50,7 @@ type ResponsibilityRoleAssignment struct {
 // Organisations represents the organisations element.
 type Organisations struct {
 	Authorities []Authority `xml:"Authority"`
-	Operator    Operator    `xml:"Operator"`
+	Operators   []Operator  `xml:"Operator"`
 }
 
 // Authority represents an Authority element.
@@ -79,7 +79,7 @@ type Operator struct {
 
 // ContactDetails represents ContactDetails element.
 type ContactDetails struct {
-	Phone string `xml:"Phone"`
-	Email string `xml:"Email"`
-	Url   string `xml:"Url"`
+	Phone string `xml:"Phone,omitempty"`
+	Email string `xml:"Email,omitempty"`
+	Url   string `xml:"Url,omitempty"`
 }

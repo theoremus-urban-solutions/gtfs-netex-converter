@@ -10,12 +10,14 @@ import (
 // StopConverter handles conversion of GTFS stops to NeTEx stop entities
 type StopConverter struct {
 	idMapper *IDMapper
+	orgIndex *OrganisationIndex
 }
 
 // NewStopConverter creates a new stop converter
-func NewStopConverter(idMapper *IDMapper) *StopConverter {
+func NewStopConverter(idMapper *IDMapper, orgIndex *OrganisationIndex) *StopConverter {
 	return &StopConverter{
 		idMapper: idMapper,
+		orgIndex: orgIndex,
 	}
 }
 
@@ -103,6 +105,10 @@ func (sc *StopConverter) convertToStopPlace(stop gtfs.Stop) netex.StopPlace {
 				Longitude: stop.StopLon,
 				Latitude:  stop.StopLat,
 			},
+		},
+		AuthorityRef: netex.AuthorityRef{
+			Ref:     sc.orgIndex.Primary().AuthorityID,
+			Version: "1",
 		},
 		StopPlaceType: sc.getStopPlaceType(stop.LocationType),
 		// Note: Additional properties like wheelchair_boarding could be added to KeyList

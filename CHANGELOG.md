@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-09-11
+
+### Fixed
+- Authority, Operator, DataSource and ResponsibilitySet are now built from `agency.txt` (one Authority/Operator per agency) instead of a hardcoded "Sofia Transport" placeholder with fake contact details.
+- Lines reference the Authority/Operator of their own `agency_id`; StopPlaces reference the primary agency's Authority instead of an empty ref.
+- Frame IDs are scoped to the primary agency (e.g. `BG::CompositeFrame:BDZ::`) instead of `SOFIA`.
+- Empty ContactDetails fields are omitted from the output.
+
 ## [1.0.0] - 2025-01-10
 
 ### Added
