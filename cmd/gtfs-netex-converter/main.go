@@ -1,46 +1,51 @@
 package main
 
 import (
-	"encoding/xml"
+	"archive/zip"
+	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/theoremus-urban-solutions/gtfs-netex-converter/converter"
+	"github.com/theoremus-urban-solutions/gtfs-netex-converter/stream"
 )
 
 func main() {
 	// Command line flags
 	var (
-		inputDir             = flag.String("input", "", "Input directory containing GTFS files")
-		outputFile           = flag.String("output", "output.xml", "Output NeTEx XML file")
-		reportFile           = flag.String("report", "", "Output JSON report file (optional)")
-		reportFormat         = flag.String("report-format", "text", "Report format: text, json, or both")
-		participantRef       = flag.String("participant", "BG", "Participant reference (e.g., BG for Bulgaria)")
-		timezone             = flag.String("timezone", "Europe/Sofia", "Default timezone")
-		language             = flag.String("language", "bg", "Default language")
-		locationSystem       = flag.String("location-system", "EPSG:4326", "Location coordinate system")
-		generateFareFrame    = flag.Bool("fare-frame", false, "Generate FareFrame (if fare data available)")
-		generateGeneralFrame = flag.Bool("general-frame", false, "Generate GeneralFrame (if infrastructure data available)")
-		verbose              = flag.Bool("verbose", false, "Enable verbose output")
-		enableStreaming      = flag.Bool("streaming", false, "Enable streaming mode to reduce memory usage (recommended for large GTFS files)")
-		batchSize            = flag.Int("batch-size", 10000, "Batch size for streaming mode")
+		input          = flag.String("input", "", "GTFS zip or directory of GTFS files")
+		outputFile     = flag.String("output", "output.xml", "Output NeTEx XML file; a .zip name zips it")
+		pubTime        = flag.String("publication-time", "", "PublicationTimestamp as 2006-01-02T15:04:05 (default now)")
+		reportFile     = flag.String("report", "", "Output JSON report file (optional)")
+		reportFormat   = flag.String("report-format", "text", "Report format: text, json, or both")
+		participantRef = flag.String("participant", "BG", "Codespace and participant reference (e.g., BG for Bulgaria)")
+		timezone       = flag.String("timezone", "Europe/Sofia", "Default timezone")
+		language       = flag.String("language", "bg", "Default language")
+		verbose        = flag.Bool("verbose", false, "Enable verbose output")
 	)
+	// Flags of the old tree converter, kept so existing scripts still run.
+	flag.String("location-system", "EPSG:4326", "Ignored since v1.1.0: output is always EPSG:4326")
+	flag.Bool("fare-frame", false, "Ignored since v1.1.0: fares are outside EPIP")
+	flag.Bool("general-frame", false, "Ignored since v1.1.0")
+	flag.Bool("streaming", false, "Ignored since v1.1.0: conversion always streams")
+	flag.Int("batch-size", 10000, "Ignored since v1.1.0")
 
 	flag.Parse()
 
-	// Validate required arguments
-	if *inputDir == "" {
-		fmt.Fprintf(os.Stderr, "Error: Input directory is required. Use -input flag.\n\n")
+	if *input == "" {
+		fmt.Fprintf(os.Stderr, "Error: Input is required. Use -input flag.\n\n")
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	// Check if input directory exists
-	if _, err := os.Stat(*inputDir); os.IsNotExist(err) {
-		log.Fatalf("Error: Input directory does not exist: %s", *inputDir)
+	st, err := os.Stat(*input)
+	if err != nil {
+		log.Fatalf("Error: Input does not exist: %s", *input)
 	}
 
 	// Create output directory if needed
@@ -51,10 +56,9 @@ func main() {
 		}
 	}
 
-	// Print configuration if verbose
 	if *verbose {
-		fmt.Println("GTFS to NeTEx Converter")
-		fmt.Printf("  Input:       %s\n", *inputDir)
+		fmt.Println("GTFS to NeTEx Converter (EPIP)")
+		fmt.Printf("  Input:       %s\n", *input)
 		fmt.Printf("  Output:      %s\n", *outputFile)
 		fmt.Printf("  Participant: %s\n", *participantRef)
 		fmt.Printf("  Timezone:    %s\n", *timezone)
@@ -62,61 +66,66 @@ func main() {
 		fmt.Println()
 	}
 
-	// Create converter configuration
-	config := &converter.Config{
-		ParticipantRef:       *participantRef,
-		DefaultTimezone:      *timezone,
-		DefaultLanguage:      *language,
-		LocationSystem:       *locationSystem,
-		GenerateFareFrame:    *generateFareFrame,
-		GenerateGeneralFrame: *generateGeneralFrame,
-		EnableStreaming:      *enableStreaming,
-		BatchSize:            *batchSize,
+	cfg := stream.Config{Codespace: *participantRef, TimeZone: *timezone, Language: *language}
+	if *pubTime != "" {
+		t, err := time.Parse("2006-01-02T15:04:05", *pubTime)
+		if err != nil {
+			log.Fatalf("Error: bad -publication-time: %v", err)
+		}
+		cfg.PublicationTime = t
 	}
-
-	// Create and run converter
-	conv := converter.NewConverter(config)
-	netexData, err := conv.Convert(*inputDir)
+	report, err := convert(*input, st.IsDir(), *outputFile, cfg)
 	if err != nil {
 		log.Fatalf("Conversion failed: %v", err)
 	}
+	report.Summary.InputDirectory = *input
+	report.Summary.OutputFile = *outputFile
+	writeReport(report, *reportFile, *reportFormat, *verbose)
+}
 
-	// Generate XML output
-	if *enableStreaming {
-		// Use streaming XML writer to reduce memory usage
-		if *verbose {
-			fmt.Println("Writing XML output in streaming mode...")
-		}
-		if err := converter.WriteToFile(*outputFile, netexData); err != nil {
-			log.Fatalf("Failed to write output file: %v", err)
-		}
-	} else {
-		// Traditional approach - marshal all at once
-		xmlData, err := xml.MarshalIndent(netexData, "", "  ")
-		if err != nil {
-			log.Fatalf("Failed to marshal XML: %v", err)
-		}
-
-		// Write output file
-		xmlOutput := xml.Header + string(xmlData)
-		if err := os.WriteFile(*outputFile, []byte(xmlOutput), 0600); err != nil {
-			log.Fatalf("Failed to write output file: %v", err)
+// convert runs the streaming EPIP converter; a .zip output gets one XML entry named after it.
+func convert(input string, isDir bool, output string, cfg stream.Config) (*converter.ConversionReport, error) {
+	f, err := os.Create(output) //nolint:gosec // output path is the user's choice
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	var dst io.Writer = f
+	var zw *zip.Writer
+	if strings.HasSuffix(strings.ToLower(output), ".zip") {
+		zw = zip.NewWriter(f)
+		name := strings.TrimSuffix(filepath.Base(output), filepath.Ext(output)) + ".xml"
+		if dst, err = zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate, Modified: time.Now()}); err != nil {
+			return nil, err
 		}
 	}
+	var report *converter.ConversionReport
+	if isDir {
+		report, err = stream.ConvertFS(context.Background(), os.DirFS(input), dst, cfg)
+	} else {
+		report, err = stream.ConvertZipFile(context.Background(), input, dst, cfg)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if zw != nil {
+		if err := zw.Close(); err != nil {
+			return nil, err
+		}
+	}
+	return report, f.Close()
+}
 
-	// Generate comprehensive report
-	report := conv.GenerateReport()
-	report.Summary.OutputFile = *outputFile
-
+func writeReport(report *converter.ConversionReport, reportFile, reportFormat string, verbose bool) {
 	// Output report based on format
-	shouldOutputText := *reportFormat == converter.ReportFormatText || *reportFormat == converter.ReportFormatBoth || (*reportFormat != converter.ReportFormatJSON && *reportFile == "")
-	shouldOutputJSON := *reportFormat == converter.ReportFormatJSON || *reportFormat == converter.ReportFormatBoth || *reportFile != ""
+	shouldOutputText := reportFormat == converter.ReportFormatText || reportFormat == converter.ReportFormatBoth || (reportFormat != converter.ReportFormatJSON && reportFile == "")
+	shouldOutputJSON := reportFormat == converter.ReportFormatJSON || reportFormat == converter.ReportFormatBoth || reportFile != ""
 
 	// Text output (console or verbose)
-	if shouldOutputText && *verbose {
+	if shouldOutputText && verbose {
 		printTextReport(report)
-	} else if shouldOutputText && !*verbose {
-		fmt.Printf("Conversion completed: %s\n", *outputFile)
+	} else if shouldOutputText && !verbose {
+		fmt.Printf("Conversion completed: %s\n", report.Summary.OutputFile)
 		fmt.Printf("  Processed %d GTFS entities → %d NeTEx entities in %.2fs\n",
 			report.InputStatistics.TotalRecords,
 			report.OutputStatistics.TotalEntities,
@@ -124,23 +133,23 @@ func main() {
 	}
 
 	// JSON output to file
-	if shouldOutputJSON && *reportFile != "" {
+	if shouldOutputJSON && reportFile != "" {
 		jsonData, err := report.ToJSON()
 		if err != nil {
 			log.Fatalf("Failed to generate JSON report: %v", err)
 		}
 
-		if err := os.WriteFile(*reportFile, jsonData, 0600); err != nil {
+		if err := os.WriteFile(reportFile, jsonData, 0600); err != nil {
 			log.Fatalf("Failed to write report file: %v", err)
 		}
 
-		if *verbose {
-			fmt.Printf("\n📊 JSON report saved to: %s\n", *reportFile)
+		if verbose {
+			fmt.Printf("\n📊 JSON report saved to: %s\n", reportFile)
 		}
 	}
 
 	// JSON output to console
-	if shouldOutputJSON && *reportFile == "" && *reportFormat == "json" {
+	if shouldOutputJSON && reportFile == "" && reportFormat == "json" {
 		jsonData, err := report.ToJSON()
 		if err != nil {
 			log.Fatalf("Failed to generate JSON report: %v", err)

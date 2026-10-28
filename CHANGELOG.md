@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - Unreleased
+
+### Added
+- `stream.ConvertZip`, `stream.ConvertZipFile` and `stream.ConvertFS`: a streaming converter whose output passes the strict EPIP schema and the NeTEx v2.0.0 schema. Full Sofia converts in about 5 s with under 200 MB of memory.
+- Calendars: `UicOperatingPeriod` with `ValidDayBits` for every service, next to `DaysOfWeek` and dated `DayTypeAssignment`s. Every GTFS service day is kept, holidays included.
+- Shapes: each trip's shape is cut at its stops into `ServiceLink` geometry, and each `StopPointInJourneyPattern` points to its onward link.
+- Trip `wheelchair_accessible` and `bikes_allowed` as an inline `ServiceFacilitySet`; `trip_short_name` as the journey's `Name`.
+- Report warnings that count everything EPIP cannot carry: blocks, pathways, fares, "transfer not possible", route-level transfers and timed-transfer guarantees.
+- CLI: `-input` takes a GTFS zip; `-output` ending in `.zip` writes a zip; `-publication-time` fixes the timestamp.
+- CI job that checks the test feeds against both schemas and runs Greenlight's EPIP rules.
+
+### Changed
+- The CLI uses `stream` for zip and folder input alike. `-location-system`, `-fare-frame`, `-general-frame`, `-streaming` and `-batch-size` are accepted and ignored.
+- Frames carry EPIP's frame types (`epip:EU_PI_NETWORK_OFFER` and the rest).
+- Transfers: walk time is `WalkTransferDuration`; trip-to-trip transfers are `ServiceJourneyInterchange` with `StaySeated` or `StandardTransferTime`.
+- Stops no trip serves get `StopPlaceType` `other`; routes with no trips are no longer written as `Line`s.
+- IDs of routes, quays, journey patterns and route points change once.
+
+### Deprecated
+- `converter.Converter.Convert`: its output does not follow EPIP. Use `stream.ConvertZip` or `stream.ConvertFS`.
+
 ## [1.0.4] - 2026-09-11
 
 ### Fixed

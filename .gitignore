@@ -109,6 +109,7 @@ benchmark-results/
 # Local testing feeds
 feeds/
 *.zip
+!stream/testdata/*.zip
 test-feeds/
 
 # Generated files

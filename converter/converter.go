@@ -72,6 +72,8 @@ func NewConverter(config *Config) *Converter {
 }
 
 // Convert performs the complete GTFS to NeTEx conversion
+//
+// Deprecated: its output does not follow EPIP and needs about 1.1 GB for a Sofia-sized feed; use stream.ConvertZip or stream.ConvertFS.
 func (c *Converter) Convert(inputDir string) (*netex.PublicationDelivery, error) {
 	c.startTime = time.Now()
 	fmt.Println("Starting GTFS to NeTEx conversion...")

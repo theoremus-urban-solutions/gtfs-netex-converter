@@ -7,11 +7,10 @@ A high-performance Go library and CLI tool for converting GTFS (General Transit 
 Transforms public transit data from GTFS format (used by Google Maps, transit apps) to NeTEx format (European standard for transit data exchange). Handles complete transit networks including stops, routes, schedules, and service calendars.
 
 **Key Features:**
-- 🚀 **High Performance**: O(1) lookups, processes 390K+ entities/second
-- 🌍 **Configurable**: Works with any transit agency worldwide
-- 📊 **Comprehensive Reporting**: JSON reports with statistics and performance metrics
-- ✅ **Battle-Tested**: 72.6% test coverage, validated with real-world data
-- 🔧 **Production-Ready**: Used for Sofia's 1.6M record transit dataset
+- ✅ **EPIP output**: passes the strict EPIP schema and the NeTEx v2.0.0 schema, checked in CI
+- 🚀 **Streaming**: Sofia's 1.6M-record feed converts in about 5 s with under 200 MB of memory
+- 📅 **Exact calendars**: every service day survives the conversion, checked day by day in the tests
+- 📊 **Reporting**: JSON report with counts, timings, and every piece of GTFS left out
 
 ## NeTEx Profile: EPIP
 
@@ -36,11 +35,9 @@ xmllint --noout --schema NeTEx/xsd/NeTEx_publication.xsd output.xml
 
 **Field mapping.** GTFS fields map to NeTEx as the [DATA4PT GTFS-NeTEx mapping](./2024-June_DATA4PT_GTFS-NeTEx-Mapping_vf.pdf) describes. Where DATA4PT uses an element EPIP does not allow, EPIP wins.
 
-**Status.** The current output does not conform yet. An 8-route Sofia sample fails the EPIP schema with 5,900 errors. Conformance needs these changes:
-- **Calendar.** Write `UicOperatingPeriod` with `ValidDayBits`, which EPIP requires, next to `DaysOfWeek`.
-- **Transfers.** Put the walk time in `WalkTransferDuration`. Do not write `TransferRestriction`, since EPIP has no place for it.
-- **Service journeys.** Do not write `BlockRef` or `LineRef`. The line is reached through the journey pattern and its route.
-- **Shapes.** EPIP carries geometry only on stop-to-stop `ServiceLink`s, not on journey patterns.
+**Status.** Since v1.1.0 the output conforms. CI converts four test feeds, checks each against both schemas, and runs Greenlight's 13 EPIP rules on the 8-route Sofia sample. The full Sofia feed also passes both schemas. What EPIP cannot carry, such as blocks, pathways and fares, is left out and counted in the report; see [UNMAPPABLE_FEATURES.md](UNMAPPABLE_FEATURES.md).
+
+The `converter` package's `Convert` is the pre-1.1.0 converter. Its output does not conform and it is deprecated; use `stream.ConvertZip`.
 
 ## Quick Start
 
@@ -59,20 +56,19 @@ go install ./cmd/gtfs-netex-converter
 ### Basic Usage
 
 ```bash
-# Convert GTFS to NeTEx
+# Convert a GTFS zip (or a folder of GTFS files) to EPIP NeTEx
 ./bin/gtfs-netex-converter \
-  -input ./sofia_gtfs \
+  -input ./sofia_gtfs.zip \
   -output ./sofia_netex.xml \
   -participant BG \
   -verbose
 
-# With JSON report
+# Zipped output with a JSON report
 ./bin/gtfs-netex-converter \
-  -input ./gtfs_data \
-  -output ./output.xml \
+  -input ./gtfs.zip \
+  -output ./netex.zip \
   -report ./report.json \
-  -report-format json \
-  -participant BG
+  -report-format json
 ```
 
 ### As a Library
@@ -81,80 +77,53 @@ go install ./cmd/gtfs-netex-converter
 package main
 
 import (
-    "gtfs-netex-converter/converter"
-    "encoding/xml"
+    "context"
+    "log"
     "os"
+
+    "github.com/theoremus-urban-solutions/gtfs-netex-converter/stream"
 )
 
 func main() {
-    // Configure converter
-    config := &converter.Config{
-        ParticipantRef:  "BG",
-        DefaultTimezone: "Europe/Sofia",
-        DefaultLanguage: "en",
-    }
-
-    // Convert
-    conv := converter.NewConverter(config)
-    netexData, err := conv.Convert("./gtfs_data")
+    out, err := os.Create("output.xml")
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
+    defer out.Close()
 
-    // Generate report
-    report := conv.GenerateReport()
+    // stream.ConvertZip takes an io.ReaderAt and its size; stream.ConvertFS takes a folder as fs.FS.
+    report, err := stream.ConvertZipFile(context.Background(), "gtfs.zip", out, stream.Config{
+        Codespace: "BG",
+        TimeZone:  "Europe/Sofia",
+        Language:  "bg",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
     jsonReport, _ := report.ToJSON()
-    os.WriteFile("report.json", jsonReport, 0644)
-
-    // Save NeTEx XML
-    xmlData, _ := xml.MarshalIndent(netexData, "", "  ")
-    os.WriteFile("output.xml", xmlData, 0644)
+    os.WriteFile("report.json", jsonReport, 0o644)
 }
 ```
 
 ## How It Works
 
-### 1. Load GTFS Data
-Reads all GTFS files (stops, routes, trips, stop_times, calendar_dates, etc.) from input directory.
-
-### 2. Build Lookup Indices
-Creates O(1) hash map indices for fast entity lookups (critical for performance with large datasets).
-
-### 3. Convert Entities
-Transforms GTFS entities to NeTEx equivalents:
-
-| GTFS | → | NeTEx |
-|------|---|-------|
-| Agency | → | Operator, Authority |
-| Stop | → | StopPlace, Quay, ScheduledStopPoint |
-| Route | → | Line, Route |
-| Trip | → | ServiceJourney |
-| StopTime | → | TimetabledPassingTime |
-| CalendarDate | → | DayType, OperatingPeriod |
-
-### 4. Generate NeTEx Structure
-Organizes converted data into NeTEx frames:
-- **ResourceFrame**: Organizations, operators
-- **ServiceCalendarFrame**: Service calendars, day types
-- **ServiceFrame**: Lines, routes, journey patterns
-- **SiteFrame**: Stop places, quays
-- **TimetableFrame**: Service journeys, passing times
-
-### 5. Output XML + Report
-Generates NeTEx XML and optional JSON report with statistics. See [NeTEx Profile: EPIP](#netex-profile-epip) for the schemas the output must pass.
+`stream` reads the GTFS files one at a time and keeps only compact tables in memory. Stop times are packed into integers and shapes into float slices. It then writes the XML straight to the destination, frame by frame, without building a document tree. The frames, and where each GTFS field goes, are in [GTFS-NeTEx-Mapping-Reference.md](GTFS-NeTEx-Mapping-Reference.md).
 
 ## CLI Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-input` | (required) | Input directory with GTFS files |
-| `-output` | `output.xml` | Output NeTEx XML file |
+| `-input` | (required) | GTFS zip, or a folder of GTFS files |
+| `-output` | `output.xml` | Output NeTEx XML file; a name ending in `.zip` writes a zip holding one XML file |
 | `-report` | | Optional JSON report file |
 | `-report-format` | `text` | Report format: `text`, `json`, or `both` |
-| `-participant` | `BG` | Participant reference (agency/country code) |
+| `-participant` | `BG` | Codespace, ID prefix and participant reference |
 | `-timezone` | `Europe/Sofia` | Default timezone |
-| `-language` | `en` | Default language code |
+| `-language` | `bg` | Default language code |
+| `-publication-time` | now | `PublicationTimestamp` as `2006-01-02T15:04:05`; fix it to get the same bytes on every run |
 | `-verbose` | `false` | Enable verbose output |
+
+`-location-system`, `-fare-frame`, `-general-frame`, `-streaming` and `-batch-size` are still accepted and ignored.
 
 ## JSON Report Example
 
@@ -195,46 +164,38 @@ Generates NeTEx XML and optional JSON report with statistics. See [NeTEx Profile
 
 ## Performance
 
-Tested with Sofia transit dataset:
-- **Input**: 1.6M GTFS records (10 files)
-- **Processing Time**: 4.09 seconds
-- **Throughput**: 390,685 entities/second
-- **Success Rate**: 100%
+Full Sofia feed (1.6M GTFS records, 29,156 trips), measured on 2026-10-28 with `/usr/bin/time -v`:
 
-Optimization techniques:
-- O(1) lookup indices using hash maps
-- Pre-allocated slices for known sizes
-- Single-pass processing where possible
-- Minimal memory allocations
+| Output | Time | Peak memory | Size |
+|--------|------|-------------|------|
+| XML | 5.3 s | 194 MB | 339 MB |
+| zip | 8.1 s | 197 MB | 20 MB |
+
+The pre-1.1.0 `Convert` needed about 1.1 GB for the same feed.
 
 ## Testing
 
 ```bash
-# Run all tests
 make test
-
-# Run with coverage
-go test ./converter/... -cover
-
-# Run specific test
-go test ./converter/... -run TestEndToEndConversion -v
+go test ./stream/... -cover
+# After a deliberate output change, rewrite the golden files and review the diff:
+go test ./stream/... -run TestGolden -update
 ```
 
-Test coverage: **72.6%**
-
-Includes:
-- Unit tests for all converters
-- Integration tests with real GTFS data
-- Performance benchmarks
-- Error handling tests
-- Multi-country configuration tests
+`stream` has 93.6% test coverage. Its tests include:
+- golden output for three small feeds
+- a calendar check that expands every service back into dates, through the weekdays and through `ValidDayBits` alone, and compares them with GTFS
+- shape cutting on a straight line, a loop, and a stop far off the shape
+- an onward `ServiceLink` for every stop but the last
 
 ## Project Structure
 
 ```
 gtfs-netex-converter/
 ├── cmd/gtfs-netex-converter/  # CLI application
-├── converter/                 # Conversion logic
+├── stream/                    # EPIP converter (ConvertZip, ConvertFS)
+│   └── testdata/             # Test feeds and golden NeTEx
+├── converter/                 # Deprecated tree converter and the report types
 │   ├── converter.go          # Main orchestration
 │   ├── lookup_indices.go     # O(1) lookup system
 │   ├── id_generator.go       # Dynamic ID generation
@@ -250,16 +211,17 @@ gtfs-netex-converter/
 
 | File | Status | Notes |
 |------|--------|-------|
-| agency.txt | ✅ Required | Converted to Operator |
-| stops.txt | ✅ Required | Converted to StopPlace/Quay |
-| routes.txt | ✅ Required | Converted to Line |
-| trips.txt | ✅ Required | Converted to ServiceJourney |
-| stop_times.txt | ✅ Required | Converted to PassingTime |
-| calendar_dates.txt | ✅ Supported | Converted to DayType |
-| shapes.txt | ⚠️ Loaded | Not converted to NeTEx |
-| transfers.txt | ✅ Supported | Converted to Connection |
-| pathways.txt | ✅ Supported | Converted to PathLink |
-| fare_attributes.txt | ⚠️ Loaded | Requires `-fare-frame` flag |
+| agency.txt | ✅ Converted | Authority and Operator |
+| stops.txt | ✅ Required | StopPlace, Quay, ScheduledStopPoint |
+| routes.txt | ✅ Required | Line, Route |
+| trips.txt | ✅ Required | ServiceJourney |
+| stop_times.txt | ✅ Required | ServiceJourneyPattern, TimetabledPassingTime |
+| calendar.txt, calendar_dates.txt | ✅ Converted | DayType, UicOperatingPeriod, DayTypeAssignment |
+| shapes.txt | ✅ Converted | ServiceLink geometry, cut at stops |
+| transfers.txt | ✅ Converted | Connection, ServiceJourneyInterchange |
+| feed_info.txt | ✅ Converted | validity period |
+| frequencies.txt, translations.txt, levels.txt | ⚠️ Not yet | planned for v1.2.0, counted in the report |
+| pathways.txt, fare_attributes.txt, fare_rules.txt | ❌ Left out | no place in EPIP, counted in the report |
 
 ## Requirements
 
