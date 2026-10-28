@@ -13,6 +13,35 @@ Transforms public transit data from GTFS format (used by Google Maps, transit ap
 - ✅ **Battle-Tested**: 72.6% test coverage, validated with real-world data
 - 🔧 **Production-Ready**: Used for Sofia's 1.6M record transit dataset
 
+## NeTEx Profile: EPIP
+
+The converter's output follows the **European Passenger Information Profile (EPIP)**, CEN/TS 16614-4. EPIP is the European minimum NeTEx profile for passenger information: stops, lines, routes, timetables and calendars.
+
+**Why EPIP.** Delegated Regulation (EU) 2024/490, Article 4(2), says NeTEx data on a national access point "shall be represented through minimum EU profiles or national profiles". Bulgaria has no national NeTEx profile, so the EU profile applies.
+
+**Schemas.** Every output must pass both checks with 0 errors:
+
+| Check | Schema |
+|-------|--------|
+| Profile | `NeTEx_publication_EPIP.xsd` from [NeTEx-Profile-EPIP](https://github.com/TransmodelEcosystem/NeTEx-Profile-EPIP). It is built on NeTEx 1.3.1, and the repository is archived. |
+| Base | `xsd/NeTEx_publication.xsd` from [NeTEx v2.0.0](https://github.com/TransmodelEcosystem/NeTEx/releases/tag/v2.0.0) |
+
+EPIP is a subset of NeTEx, so a file that passes EPIP also passes the full v2.0 schema.
+
+```bash
+xmllint --noout --schema NeTEx-Profile-EPIP/NeTEx_publication_EPIP.xsd output.xml
+xmllint --noout --schema NeTEx/xsd/NeTEx_publication.xsd output.xml
+# For files of a few hundred MB, add --stream to keep memory low.
+```
+
+**Field mapping.** GTFS fields map to NeTEx as the [DATA4PT GTFS-NeTEx mapping](./2024-June_DATA4PT_GTFS-NeTEx-Mapping_vf.pdf) describes. Where DATA4PT uses an element EPIP does not allow, EPIP wins.
+
+**Status.** The current output does not conform yet. An 8-route Sofia sample fails the EPIP schema with 5,900 errors. Conformance needs these changes:
+- **Calendar.** Write `UicOperatingPeriod` with `ValidDayBits`, which EPIP requires, next to `DaysOfWeek`.
+- **Transfers.** Put the walk time in `WalkTransferDuration`. Do not write `TransferRestriction`, since EPIP has no place for it.
+- **Service journeys.** Do not write `BlockRef` or `LineRef`. The line is reached through the journey pattern and its route.
+- **Shapes.** EPIP carries geometry only on stop-to-stop `ServiceLink`s, not on journey patterns.
+
 ## Quick Start
 
 ### Installation
@@ -112,7 +141,7 @@ Organizes converted data into NeTEx frames:
 - **TimetableFrame**: Service journeys, passing times
 
 ### 5. Output XML + Report
-Generates valid NeTEx XML and optional JSON report with statistics.
+Generates NeTEx XML and optional JSON report with statistics. See [NeTEx Profile: EPIP](#netex-profile-epip) for the schemas the output must pass.
 
 ## CLI Options
 
@@ -254,6 +283,9 @@ MIT License - see LICENSE file for details.
 - [GTFS Specification](https://gtfs.org/reference/static/)
 - [NeTEx Documentation](http://netex-cen.eu/)
 - [DATA4PT GTFS-NeTEx Mapping](https://data4pt.org/)
+- [NeTEx-Profile-EPIP (EPIP schema)](https://github.com/TransmodelEcosystem/NeTEx-Profile-EPIP)
+- [NeTEx v2.0.0](https://github.com/TransmodelEcosystem/NeTEx/releases/tag/v2.0.0)
+- [Delegated Regulation (EU) 2024/490](https://eur-lex.europa.eu/eli/reg_del/2024/490/oj/eng)
 
 ## Support
 
