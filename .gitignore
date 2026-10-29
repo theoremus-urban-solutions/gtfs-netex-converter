@@ -110,6 +110,7 @@ benchmark-results/
 feeds/
 *.zip
 !stream/testdata/*.zip
+!stream/testdata/edge/*.zip
 test-feeds/
 
 # Generated files

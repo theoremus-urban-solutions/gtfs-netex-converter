@@ -79,25 +79,28 @@ jobs:
         for f in allfields calendar sofia-example sofia-slice; do
           ./conv -input stream/testdata/$f.zip -output out/$f.xml -publication-time 2026-01-01T00:00:00
         done
+        for f in stream/testdata/edge/*.zip; do
+          ./conv -input $f -output out/edge-$(basename $f .zip).xml -publication-time 2026-01-01T00:00:00
+        done
 
     - name: Fetch the EPIP and NeTEx v2.0.0 schemas
       run: |
         sudo apt-get update && sudo apt-get install -y libxml2-utils
-        git clone https://github.com/TransmodelEcosystem/NeTEx-Profile-EPIP.git epip
-        git -C epip checkout e5eaf83f15f7fd8db7991a4a8323b6ff7905c13a
-        git clone --depth 1 --branch v2.0.0 --filter=blob:none --sparse https://github.com/TransmodelEcosystem/NeTEx.git netex
-        git -C netex sparse-checkout set xsd
+        git clone https://github.com/TransmodelEcosystem/NeTEx-Profile-EPIP.git schemas/epip
+        git -C schemas/epip checkout e5eaf83f15f7fd8db7991a4a8323b6ff7905c13a
+        git clone --depth 1 --branch v2.0.0 --filter=blob:none --sparse https://github.com/TransmodelEcosystem/NeTEx.git schemas/netex
+        git -C schemas/netex sparse-checkout set xsd
 
     - name: Strict EPIP schema
-      run: for f in out/*.xml; do xmllint --noout --schema epip/NeTEx_publication_EPIP.xsd "$f"; done
+      run: xmllint --noout --schema schemas/epip/NeTEx_publication_EPIP.xsd out/*.xml
 
     - name: NeTEx v2.0.0 schema
-      run: for f in out/*.xml; do xmllint --noout --schema netex/xsd/NeTEx_publication.xsd "$f"; done
+      run: xmllint --noout --schema schemas/netex/xsd/NeTEx_publication.xsd out/*.xml
 
     - name: Greenlight EPIP rules
       run: |
-        docker run --rm -v "$PWD/out:/data:ro" itxpt/greenlight:1.1.2 validate -i /data/sofia-slice.xml -s epip@1.1.2 -o json -l error > greenlight.json
-        python3 -c "import json; d=json.load(open('greenlight.json')); bad=[r['name'] for doc in d for r in doc['validations'] if not r['valid']]; print('failing rules:', bad); exit(1 if bad else 0)"
+        docker run --rm -v "$PWD/out:/data:ro" itxpt/greenlight:1.1.2 validate -i /data -s epip@1.1.2 -o json -l error > greenlight.json
+        python3 -c "import glob, json; d=json.load(open('greenlight.json')); bad=[(doc['name'], r['name']) for doc in d for r in doc['validations'] if not r['valid']]; print(len(d), 'files checked, failing:', bad); exit(1 if bad or len(d) != len(glob.glob('out/*.xml')) else 0)"
 
   build:
     name: Build

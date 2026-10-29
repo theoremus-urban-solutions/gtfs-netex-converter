@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"runtime"
 	"slices"
@@ -120,6 +121,7 @@ type conv struct {
 	calLo, calHi         int
 	routeByID            map[string][]string
 	stopByID             map[string][]string
+	children             map[string][][]string // platforms of each station
 	orgs                 []org
 	orgOf                map[string]org
 
@@ -132,6 +134,20 @@ func (c *conv) id(typ, local string) string { return c.cs + "::" + typ + ":" + l
 
 func (c *conv) ssp(stop string) string {
 	return c.id("ScheduledStopPoint", "scheduled_stop_point_"+stop)
+}
+
+// locType returns a stop's location_type, or -1 when stops.txt has no such stop.
+func (c *conv) locType(id string) int {
+	r, ok := c.stopByID[id]
+	if !ok {
+		return -1
+	}
+	return atoiDef(c.stops.get(r, "location_type"), 0)
+}
+
+// lone reports whether a stops.txt row is a platform with no station holding it.
+func (c *conv) lone(r []string) bool {
+	return atoiDef(c.stops.get(r, "location_type"), 0) == 0 && c.locType(c.stops.get(r, "parent_station")) != 1
 }
 
 func (c *conv) note(typ, msg string, n int) {
@@ -165,22 +181,37 @@ func gmlID(s string) string {
 var modeOfType = map[int]string{0: "tram", 1: "metro", 2: "rail", 3: "bus", 4: "water", 5: "cableway", 6: "cableway", 7: "funicular", 11: "trolleyBus", 12: "rail"}
 var vehicleTypeName = map[int]string{0: "Tram", 1: "Metro", 2: "Rail", 3: "Bus", 4: "Ferry", 5: "Cable Car", 6: "Gondola", 7: "Funicular", 11: "Trolleybus", 12: "Monorail"}
 var stopPlaceTypeOfMode = map[string]string{"bus": "onstreetBus", "trolleyBus": "onstreetBus", "tram": "onstreetTram", "metro": "metroStation",
-	"rail": "railStation", "water": "ferryStop", "cableway": "liftStation", "funicular": "liftStation", "coach": "coachStation"}
+	"rail": "railStation", "water": "ferryStop", "cableway": "liftStation", "funicular": "liftStation", "coach": "coachStation", "air": "airport"}
 var stationTypeOfMode = map[string]string{"bus": "busStation", "trolleyBus": "busStation", "tram": "tramStation", "metro": "metroStation",
-	"rail": "railStation", "water": "ferryPort", "cableway": "liftStation", "funicular": "liftStation", "coach": "coachStation"}
+	"rail": "railStation", "water": "ferryPort", "cableway": "liftStation", "funicular": "liftStation", "coach": "coachStation", "air": "airport"}
+
+// extendedModes maps each hundred of the extended route types (100 railway ... 1400 funicular) to its EPIP mode.
+var extendedModes = map[int]string{1: "rail", 2: "coach", 3: "rail", 4: "metro", 5: "metro", 6: "metro", 7: "bus", 8: "trolleyBus",
+	9: "tram", 10: "water", 11: "air", 12: "water", 13: "cableway", 14: "funicular"}
+var vehicleNameOfMode = map[string]string{"rail": "Rail", "coach": "Coach", "metro": "Metro", "bus": "Bus", "trolleyBus": "Trolleybus",
+	"tram": "Tram", "water": "Ferry", "air": "Aircraft", "cableway": "Cable Car", "funicular": "Funicular"}
+
+// modeOK returns the EPIP mode of a route type, and false when the type is unknown and "bus" is a guess.
+func modeOK(rt int) (string, bool) {
+	if m, ok := modeOfType[rt]; ok {
+		return m, true
+	}
+	if m, ok := extendedModes[rt/100]; ok && rt >= 100 {
+		return m, true
+	}
+	return "bus", false
+}
 
 func mode(rt int) string {
-	if m, ok := modeOfType[rt]; ok {
-		return m
-	}
-	return "bus"
+	m, _ := modeOK(rt)
+	return m
 }
 
 func vehicleName(rt int) string {
 	if n, ok := vehicleTypeName[rt]; ok {
 		return n
 	}
-	return "Bus"
+	return vehicleNameOfMode[mode(rt)]
 }
 
 func agencyKey(id, name string, pos int) string {
@@ -264,6 +295,19 @@ func (c *conv) load() error {
 	for _, r := range c.stops.rows {
 		c.stopByID[c.stops.get(r, "stop_id")] = r
 	}
+	c.children = map[string][][]string{}
+	orphans := 0
+	for _, r := range c.stops.rows {
+		if p := c.stops.get(r, "parent_station"); p != "" && c.locType(c.stops.get(r, "stop_id")) == 0 {
+			if c.locType(p) == 1 {
+				c.children[p] = append(c.children[p], r)
+			} else {
+				orphans++
+			}
+		}
+	}
+	c.note("parent_station_not_a_station", "Platforms whose parent_station is missing or not a station become stops of their own.", orphans)
+	c.fillTimes()
 	c.buildPatterns()
 	if err := c.loadShapes(); err != nil {
 		return err
@@ -332,13 +376,32 @@ func (c *conv) loadStopTimes() error {
 func (c *conv) buildPatterns() {
 	patIdx := map[string]int{}
 	var sb strings.Builder
-	skipped := 0
+	skipped, noRoute, noStop, noTimes := 0, 0, 0, 0
+	platform := make([]bool, len(c.stopIx.strs))
+	for i, id := range c.stopIx.strs {
+		platform[i] = c.locType(id) == 0
+	}
+trips:
 	for _, tr := range c.trips.rows {
 		tid := c.tripIx.ids[c.trips.get(tr, "trip_id")]
 		sp := c.span[tid]
 		if c.trips.get(tr, "service_id") == "" || sp[0] < 0 {
 			skipped++
 			continue
+		}
+		if _, ok := c.routeByID[c.trips.get(tr, "route_id")]; !ok {
+			noRoute++
+			continue
+		}
+		if c.rows[sp[0]].dep < 0 || c.rows[sp[1]-1].arr < 0 {
+			noTimes++
+			continue
+		}
+		for j := sp[0]; j < sp[1]; j++ {
+			if !platform[c.rows[j].stop] {
+				noStop++
+				continue trips
+			}
 		}
 		dir := c.trips.get(tr, "direction_id")
 		if dir == "" {
@@ -371,6 +434,69 @@ func (c *conv) buildPatterns() {
 		}
 	}
 	c.note("trip_without_stop_times", "Trips with no stop_times or no service_id are left out.", skipped)
+	c.note("trip_unknown_route_left_out", "Trips whose route_id is not in routes.txt are left out.", noRoute)
+	c.note("trip_unknown_stop_left_out", "Trips that call at a stop_id that is not a platform in stops.txt are left out.", noStop)
+	c.note("trip_without_end_times_left_out", "Trips whose first or last stop has no time are left out.", noTimes)
+}
+
+// fillTimes copies a lone arrival or departure to the other side, and gives untimed stops times interpolated by distance between the timed stops around them, as GTFS asks consumers to do.
+func (c *conv) fillTimes() {
+	filled := 0
+	for _, sp := range c.span {
+		if sp[0] < 0 {
+			continue
+		}
+		rows := c.rows[sp[0]:sp[1]]
+		for i := range rows {
+			if rows[i].arr < 0 {
+				rows[i].arr = rows[i].dep
+			} else if rows[i].dep < 0 {
+				rows[i].dep = rows[i].arr
+			}
+		}
+		prev := -1
+		for i := range rows {
+			if rows[i].dep < 0 {
+				continue
+			}
+			if prev >= 0 && i-prev > 1 {
+				filled += c.interpolate(rows[prev : i+1])
+			}
+			prev = i
+		}
+	}
+	c.note("times_interpolated", "Untimed stops get times interpolated by distance between the timed stops around them.", filled)
+}
+
+// interpolate fills every row between the first and last of rows, by distance, or evenly when the stops have no distance between them.
+func (c *conv) interpolate(rows []stRow) int {
+	n := len(rows)
+	cum := make([]float64, n)
+	for i := 1; i < n; i++ {
+		cum[i] = cum[i-1] + c.stopDist(rows[i-1].stop, rows[i].stop)
+	}
+	t0, t1 := rows[0].dep, rows[n-1].arr
+	for i := 1; i < n-1; i++ {
+		f := float64(i) / float64(n-1)
+		if cum[n-1] > 0 {
+			f = cum[i] / cum[n-1]
+		}
+		v := t0 + int32(math.Round(f*float64(t1-t0)))
+		rows[i].arr, rows[i].dep = v, v
+	}
+	return n - 2
+}
+
+// stopDist returns the flat-earth distance in degrees of latitude between two stops, or 0 when one is unknown.
+func (c *conv) stopDist(a, b uint32) float64 {
+	ra, ok1 := c.stopByID[c.stopIx.strs[a]]
+	rb, ok2 := c.stopByID[c.stopIx.strs[b]]
+	if !ok1 || !ok2 {
+		return 0
+	}
+	lo1, la1 := c.coord(ra)
+	lo2, la2 := c.coord(rb)
+	return math.Hypot((lo2-lo1)*math.Cos((la1+la2)*math.Pi/360), la2-la1)
 }
 
 func (c *conv) loadShapes() error {
@@ -593,9 +719,11 @@ func (c *conv) header() {
 		fi = c.feedInfo.rows[0]
 	}
 	fromDate, toDate := "", ""
+	fa, okA := dayNum(c.feedInfo.get(fi, "feed_start_date"))
+	fb, okB := dayNum(c.feedInfo.get(fi, "feed_end_date"))
 	switch {
-	case c.feedInfo.get(fi, "feed_start_date") != "" && c.feedInfo.get(fi, "feed_end_date") != "":
-		fromDate, toDate = isoDate(c.feedInfo.get(fi, "feed_start_date")), isoDate(c.feedInfo.get(fi, "feed_end_date"))
+	case okA && okB && fa <= fb:
+		fromDate, toDate = dayStr(fa), dayStr(fb)
 	case c.calHi >= 0:
 		fromDate, toDate = dayStr(c.calLo), dayStr(c.calHi)
 	default:
@@ -775,27 +903,20 @@ type assign struct {
 }
 
 // assignments lists every platform with the StopPlace that holds it: a station for its children, itself for a lone stop.
-func (c *conv) assignments() ([]assign, map[string][][]string) {
-	children := map[string][][]string{}
-	for _, r := range c.stops.rows {
-		if atoiDef(c.stops.get(r, "location_type"), 0) == 0 && c.stops.get(r, "parent_station") != "" {
-			p := c.stops.get(r, "parent_station")
-			children[p] = append(children[p], r)
-		}
-	}
+func (c *conv) assignments() []assign {
 	var as []assign
 	for _, r := range c.stops.rows {
 		lt := atoiDef(c.stops.get(r, "location_type"), 0)
 		sid := c.stops.get(r, "stop_id")
 		if lt == 1 {
-			for _, k := range children[sid] {
+			for _, k := range c.children[sid] {
 				as = append(as, assign{k, c.id("StopPlace", "stop_place_"+sid)})
 			}
-		} else if lt == 0 && c.stops.get(r, "parent_station") == "" {
+		} else if c.lone(r) {
 			as = append(as, assign{r, c.id("StopPlace", "stop_place_"+sid)})
 		}
 	}
-	return as, children
+	return as
 }
 
 func (c *conv) serviceFrame() {
@@ -869,13 +990,16 @@ func (c *conv) serviceFrame() {
 		c.made["Route"]++
 	}
 	o.s("</routes><lines>")
-	noTrips := 0
+	noTrips, unknownType := 0, 0
 	for _, r := range c.routes.rows {
 		rid := c.routes.get(r, "route_id")
 		refs := routesOfLine[rid]
 		if len(refs) == 0 {
 			noTrips++
 			continue
+		}
+		if _, ok := modeOK(atoiDef(c.routes.get(r, "route_type"), 3)); !ok {
+			unknownType++
 		}
 		g, ok := c.orgOf[c.routes.get(r, "agency_id")]
 		if !ok {
@@ -919,8 +1043,9 @@ func (c *conv) serviceFrame() {
 	}
 	o.s("</lines>")
 	c.note("line_without_trips_left_out", "Routes with no trips are left out, as nothing would reference their Line.", noTrips)
+	c.note("route_type_unknown", "Routes whose route_type has no EPIP mode, such as taxi or an unknown code, are written as bus.", unknownType)
 	c.destinationDisplays()
-	as, _ := c.assignments()
+	as := c.assignments()
 	o.s("<scheduledStopPoints>")
 	for _, a := range as {
 		sid := c.stops.get(a.stop, "stop_id")
@@ -1002,12 +1127,30 @@ func (c *conv) serviceLinks() {
 	o.s("</serviceLinks>")
 }
 
-// connections writes stop-to-stop transfers; trip-to-trip ones go to the TimetableFrame.
+// platforms returns the platforms a transfer's stop_id stands for: itself, or every platform of a station.
+func (c *conv) platforms(id string) []string {
+	switch c.locType(id) {
+	case 0:
+		return []string{id}
+	case 1:
+		ps := make([]string, 0, len(c.children[id]))
+		for _, r := range c.children[id] {
+			ps = append(ps, c.stops.get(r, "stop_id"))
+		}
+		return ps
+	}
+	return nil
+}
+
+// connections writes stop-to-stop transfers, platform rows before station rows so the more exact one wins; trip-to-trip ones go to the TimetableFrame.
 func (c *conv) connections() {
 	o := c.o
-	started := false
-	seen := map[string]bool{}
-	notPossible, routeLevel := 0, 0
+	type conn struct {
+		f, t string
+		secs int
+	}
+	var exact, fromStation []conn
+	notPossible, routeLevel, unknown := 0, 0, 0
 	for _, r := range c.transfers.rows {
 		if c.transfers.get(r, "from_trip_id") != "" && c.transfers.get(r, "to_trip_id") != "" {
 			continue
@@ -1021,7 +1164,27 @@ func (c *conv) connections() {
 			notPossible++
 			continue
 		}
-		f, t := c.ssp(c.transfers.get(r, "from_stop_id")), c.ssp(c.transfers.get(r, "to_stop_id"))
+		from, to := c.transfers.get(r, "from_stop_id"), c.transfers.get(r, "to_stop_id")
+		fs, ts := c.platforms(from), c.platforms(to)
+		if len(fs) == 0 || len(ts) == 0 {
+			unknown++
+			continue
+		}
+		secs := atoiDef(c.transfers.get(r, "min_transfer_time"), 0)
+		for _, f := range fs {
+			for _, t := range ts {
+				if c.locType(from) == 0 && c.locType(to) == 0 {
+					exact = append(exact, conn{f, t, secs})
+				} else {
+					fromStation = append(fromStation, conn{f, t, secs})
+				}
+			}
+		}
+	}
+	started := false
+	seen := map[string]bool{}
+	for _, cn := range append(exact, fromStation...) {
+		f, t := c.ssp(cn.f), c.ssp(cn.t)
 		key := md5hex(f + ">" + t)
 		if seen[key] {
 			continue
@@ -1031,7 +1194,7 @@ func (c *conv) connections() {
 			o.s("<connections>")
 			started = true
 		}
-		secs := atoiDef(c.transfers.get(r, "min_transfer_time"), 0)
+		secs := cn.secs
 		o.open("Connection", c.id("Connection", "CONN_"+key))
 		o.s("<WalkTransferDuration><DefaultDuration>PT" + strconv.Itoa(secs) + "S</DefaultDuration></WalkTransferDuration><From>")
 		o.ref("ScheduledStopPointRef", f)
@@ -1044,6 +1207,7 @@ func (c *conv) connections() {
 		o.s("</connections>")
 	}
 	c.note("transfer_not_possible_left_out", "transfer_type=3 is left out: EPIP has no TransferRestriction.", notPossible)
+	c.note("transfer_unknown_stop_left_out", "Transfers whose stop is not a platform or station in stops.txt are left out.", unknown)
 	c.note("route_transfer_left_out", "Route-to-route transfers are left out: EPIP has no InterchangeRule.", routeLevel)
 }
 
@@ -1054,7 +1218,10 @@ func (c *conv) journeyPatterns() {
 		t := c.tinfos[p.first]
 		rid := c.trips.get(t.row, "route_id")
 		o.open("ServiceJourneyPattern", c.id("JourneyPattern", "JP_"+p.key))
-		o.ref("RouteRef", c.id("Route", "route_"+rid+"_"+t.dir))
+		// EPIP allows RouteRef or RouteView here; RouteView puts the line on the pattern, as NAPCORE asks.
+		o.s("<RouteView>")
+		o.ref("LineRef", c.id("Line", "line_"+rid))
+		o.s("</RouteView>")
 		o.ref("DirectionRef", c.id("Direction", "direction_"+t.dir))
 		if hs := c.trips.get(t.row, "trip_headsign"); hs != "" {
 			o.ref("DestinationDisplayRef", c.ddID(hs))
@@ -1100,7 +1267,7 @@ func (c *conv) siteFrame() {
 			}
 		}
 	}
-	_, children := c.assignments()
+	children := c.children
 	o.open("SiteFrame", c.id("SiteFrame", pk))
 	o.frameType("EU_PI_STOP")
 	o.s("<stopPlaces>")
@@ -1153,7 +1320,7 @@ func (c *conv) siteFrame() {
 				}
 			}
 			place(r, stationTypeOfMode[m], m, children[sid])
-		} else if lt == 0 && c.stops.get(r, "parent_station") == "" {
+		} else if c.lone(r) {
 			m := stopMode[sid]
 			place(r, stopPlaceTypeOfMode[m], m, [][]string{r})
 		}
@@ -1301,18 +1468,39 @@ func (c *conv) timetableFrame() error {
 func (c *conv) interchanges() {
 	o := c.o
 	started := false
-	guaranteed := 0
+	guaranteed, unknownTrip, unknownStop := 0, 0, 0
+	written := make([]bool, len(c.tripIx.strs))
+	for _, t := range c.tinfos {
+		written[t.tid] = true
+	}
+	seen := map[string]bool{}
 	for _, r := range c.transfers.rows {
 		ft, tt := c.transfers.get(r, "from_trip_id"), c.transfers.get(r, "to_trip_id")
 		typ := atoiDef(c.transfers.get(r, "transfer_type"), 0)
 		if ft == "" || tt == "" || typ == 3 {
 			continue
 		}
+		fi, ok1 := c.tripIx.ids[ft]
+		ti, ok2 := c.tripIx.ids[tt]
+		if !ok1 || !ok2 || !written[fi] || !written[ti] {
+			unknownTrip++
+			continue
+		}
+		fp, tp := c.pointOn(c.transfers.get(r, "from_stop_id"), fi, true), c.pointOn(c.transfers.get(r, "to_stop_id"), ti, false)
+		if fp == "" || tp == "" {
+			unknownStop++
+			continue
+		}
+		id := c.id("ServiceJourneyInterchange", ft+"_"+tt+"_"+fp+"_"+tp)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
 		if !started {
 			o.s("<journeyInterchanges>")
 			started = true
 		}
-		o.open("ServiceJourneyInterchange", c.id("ServiceJourneyInterchange", ft+"_"+tt+"_"+c.transfers.get(r, "from_stop_id")))
+		o.open("ServiceJourneyInterchange", id)
 		switch typ {
 		case 1:
 			guaranteed++
@@ -1324,8 +1512,8 @@ func (c *conv) interchanges() {
 		if secs := atoiDef(c.transfers.get(r, "min_transfer_time"), 0); typ == 2 && secs > 0 {
 			o.s("<StandardTransferTime>PT" + strconv.Itoa(secs) + "S</StandardTransferTime>")
 		}
-		o.ref("FromPointRef", c.ssp(c.transfers.get(r, "from_stop_id")))
-		o.ref("ToPointRef", c.ssp(c.transfers.get(r, "to_stop_id")))
+		o.ref("FromPointRef", c.ssp(fp))
+		o.ref("ToPointRef", c.ssp(tp))
 		o.s(`<FromJourneyRef ref="`)
 		o.e(c.id("ServiceJourney", "TRIP_"+ft))
 		o.s(`"></FromJourneyRef><ToJourneyRef ref="`)
@@ -1337,6 +1525,36 @@ func (c *conv) interchanges() {
 		o.s("</journeyInterchanges>")
 	}
 	c.note("guaranteed_left_out", "transfer_type=1 between trips keeps its interchange but loses the guarantee: EPIP has no Guaranteed.", guaranteed)
+	c.note("interchange_unknown_trip_left_out", "Trip-to-trip transfers whose trip is not in the output are left out.", unknownTrip)
+	c.note("interchange_unknown_stop_left_out", "Trip-to-trip transfers whose stop the trip does not reach are left out.", unknownStop)
+}
+
+// pointOn returns the platform where a trip meets a transfer's stop_id: the trip's last stop (from side) or first stop (to side) when the stop_id is empty, the stop itself for a platform, the platform the trip uses for a station, and "" otherwise.
+func (c *conv) pointOn(stop string, tid uint32, last bool) string {
+	sp := c.span[tid]
+	if stop == "" {
+		j := sp[0]
+		if last {
+			j = sp[1] - 1
+		}
+		return c.stopIx.strs[c.rows[j].stop]
+	}
+	switch c.locType(stop) {
+	case 0:
+		return stop
+	case 1:
+		for k := 0; k < sp[1]-sp[0]; k++ {
+			j := sp[0] + k
+			if last {
+				j = sp[1] - 1 - k
+			}
+			id := c.stopIx.strs[c.rows[j].stop]
+			if c.stops.get(c.stopByID[id], "parent_station") == stop {
+				return id
+			}
+		}
+	}
+	return ""
 }
 
 func (c *conv) report() *converter.ConversionReport {

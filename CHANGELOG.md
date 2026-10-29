@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The CLI uses `stream` for zip and folder input alike. `-location-system`, `-fare-frame`, `-general-frame`, `-streaming` and `-batch-size` are accepted and ignored.
 - Frames carry EPIP's frame types (`epip:EU_PI_NETWORK_OFFER` and the rest).
+- Each `ServiceJourneyPattern` names its line with `RouteView/LineRef` instead of `RouteRef`, as NAPCORE's "LineRef should be filled" asks.
+- Feeds that break GTFS rules still give valid EPIP: bad UTF-8 and forbidden control characters become U+FFFD, station-level transfers expand to platforms, trip-to-trip interchange IDs include both stops, platforms with a missing station become their own `StopPlace`, and trips on unknown routes or stops are left out and counted.
+- Extended route types (100 to 1400) map to their mode instead of `bus`.
+- Untimed stops get times interpolated by distance, as Greenlight's `everyStopPointHaveArrivalAndDepartureTime` needs.
 - Transfers: walk time is `WalkTransferDuration`; trip-to-trip transfers are `ServiceJourneyInterchange` with `StaySeated` or `StandardTransferTime`.
 - Stops no trip serves get `StopPlaceType` `other`; routes with no trips are no longer written as `Line`s.
 - IDs of routes, quays, journey patterns and route points change once.

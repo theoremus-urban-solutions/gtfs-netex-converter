@@ -367,3 +367,97 @@ func setDay(m map[int]bool, d int, on bool) {
 		delete(m, d)
 	}
 }
+
+// TestEdgeFeeds converts small feeds that each break one rule real feeds break, and checks the XML is well-formed, every versioned ref resolves and the case is handled.
+func TestEdgeFeeds(t *testing.T) {
+	checks := map[string]func(doc string, warn map[string]int) string{
+		"bad-chars": func(doc string, _ map[string]int) string {
+			return want(strings.Contains(doc, "� cp1251 � tab"), "bad bytes are not replaced with U+FFFD")
+		},
+		"station-transfer": func(doc string, _ map[string]int) string {
+			return want(strings.Count(doc, `scheduled_stop_point_S4::" version="1"></ScheduledStopPointRef></To>`) == 2, "station transfer is not expanded to both platforms")
+		},
+		"dup-interchange": func(doc string, _ map[string]int) string {
+			return want(strings.Contains(doc, ":T1_T2_P2_P1::") && strings.Contains(doc, ":T1_T2_P2_P2::"), "interchanges sharing trips and from-stop are not both written")
+		},
+		"orphan-parent": func(doc string, warn map[string]int) string {
+			return want(strings.Contains(doc, "stop_place_P2::") && warn["parent_station_not_a_station"] == 1, "platform with a missing station is not its own stop")
+		},
+		"trip-unknown-route": func(doc string, warn map[string]int) string {
+			return want(!strings.Contains(doc, "TRIP_T4") && warn["trip_unknown_route_left_out"] == 1, "trip on an unknown route is not left out")
+		},
+		"transfer-unknown-trip": func(doc string, warn map[string]int) string {
+			return want(!strings.Contains(doc, "TRIP_T9") && warn["interchange_unknown_trip_left_out"] == 1, "transfer to an unknown trip is not left out")
+		},
+		"untimed-middle": func(doc string, warn map[string]int) string {
+			return want(strings.Contains(doc, `TPT_T1_1::" version="1"><StopPointInJourneyPatternRef`) && strings.Contains(doc, "</StopPointInJourneyPatternRef><ArrivalTime>08:10:03</ArrivalTime><DepartureTime>08:10:03</DepartureTime>") &&
+				warn["times_interpolated"] == 1, "untimed stop is not interpolated by distance")
+		},
+		"rail-extended": func(doc string, _ map[string]int) string {
+			return want(strings.Contains(doc, "<Name>Rail</Name>") && !strings.Contains(doc, "vehicle_type_100::\" version=\"1\"><Name>Bus"), "route_type 100 is not rail")
+		},
+	}
+	files, err := filepath.Glob(filepath.Join("testdata", "edge", "*.zip"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no edge feeds: %v", err)
+	}
+	for _, path := range files {
+		name := strings.TrimSuffix(filepath.Base(path), ".zip")
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			rep, err := ConvertZipFile(context.Background(), path, &buf, testCfg)
+			if err != nil {
+				t.Fatalf("convert: %v", err)
+			}
+			if msg := danglingRefs(buf.Bytes()); msg != "" {
+				t.Fatal(msg)
+			}
+			warn := map[string]int{}
+			for _, w := range rep.Warnings {
+				warn[w.Type] = w.Count
+			}
+			if check := checks[name]; check != nil {
+				if msg := check(buf.String(), warn); msg != "" {
+					t.Fatal(msg)
+				}
+			}
+		})
+	}
+}
+
+func want(ok bool, msg string) string {
+	if ok {
+		return ""
+	}
+	return msg
+}
+
+// danglingRefs parses the document, which fails on bad XML, and returns the first ref with a version that names no id, as the schema's keyrefs would.
+func danglingRefs(doc []byte) string {
+	d := xml.NewDecoder(bytes.NewReader(doc))
+	ids := map[string]bool{}
+	var refs []string
+	for {
+		tok, err := d.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "not well-formed XML: " + err.Error()
+		}
+		if el, ok := tok.(xml.StartElement); ok {
+			if id := attr(el, "id"); id != "" {
+				ids[id] = true
+			}
+			if r := attr(el, "ref"); r != "" && attr(el, "version") != "" {
+				refs = append(refs, el.Name.Local+" "+r)
+			}
+		}
+	}
+	for _, r := range refs {
+		if !ids[r[strings.IndexByte(r, ' ')+1:]] {
+			return "dangling " + r
+		}
+	}
+	return ""
+}

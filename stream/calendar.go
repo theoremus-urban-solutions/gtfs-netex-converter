@@ -16,13 +16,6 @@ func dayNum(d string) (int, bool) {
 
 func dayStr(n int) string { return time.Unix(int64(n)*86400, 0).UTC().Format("2006-01-02") }
 
-func isoDate(d string) string {
-	if len(d) == 8 {
-		return d[:4] + "-" + d[4:6] + "-" + d[6:]
-	}
-	return d
-}
-
 // weekday returns 0 for Sunday; 1970-01-01 was a Thursday.
 func weekday(d int) int { return (d + 4) % 7 }
 

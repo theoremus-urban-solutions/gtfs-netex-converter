@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"strconv"
+	"unicode/utf8"
 )
 
 // out writes XML text straight to the destination, escaping as encoding/xml does.
@@ -27,8 +28,19 @@ func (o *out) b(x []byte) {
 	_, _ = o.w.Write(x)
 }
 
+// escape also replaces invalid UTF-8 and characters XML 1.0 forbids with U+FFFD, as encoding/xml does.
 func escape(b []byte, s string) []byte {
 	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			r, n := utf8.DecodeRuneInString(s[i:])
+			if (r == utf8.RuneError && n == 1) || r == 0xFFFE || r == 0xFFFF {
+				b = append(b, "\uFFFD"...)
+			} else {
+				b = append(b, s[i:i+n]...)
+			}
+			i += n - 1
+			continue
+		}
 		switch c := s[i]; c {
 		case '"':
 			b = append(b, "&#34;"...)
@@ -47,7 +59,11 @@ func escape(b []byte, s string) []byte {
 		case '\r':
 			b = append(b, "&#xD;"...)
 		default:
-			b = append(b, c)
+			if c < 0x20 {
+				b = append(b, "\uFFFD"...)
+			} else {
+				b = append(b, c)
+			}
 		}
 	}
 	return b

@@ -25,8 +25,6 @@ The converter's output follows the **European Passenger Information Profile (EPI
 | Profile | `NeTEx_publication_EPIP.xsd` from [NeTEx-Profile-EPIP](https://github.com/TransmodelEcosystem/NeTEx-Profile-EPIP). It is built on NeTEx 1.3.1, and the repository is archived. |
 | Base | `xsd/NeTEx_publication.xsd` from [NeTEx v2.0.0](https://github.com/TransmodelEcosystem/NeTEx/releases/tag/v2.0.0) |
 
-EPIP is a subset of NeTEx, so a file that passes EPIP also passes the full v2.0 schema.
-
 ```bash
 xmllint --noout --schema NeTEx-Profile-EPIP/NeTEx_publication_EPIP.xsd output.xml
 xmllint --noout --schema NeTEx/xsd/NeTEx_publication.xsd output.xml
@@ -35,7 +33,7 @@ xmllint --noout --schema NeTEx/xsd/NeTEx_publication.xsd output.xml
 
 **Field mapping.** GTFS fields map to NeTEx as the [DATA4PT GTFS-NeTEx mapping](./2024-June_DATA4PT_GTFS-NeTEx-Mapping_vf.pdf) describes. Where DATA4PT uses an element EPIP does not allow, EPIP wins.
 
-**Status.** Since v1.1.0 the output conforms. CI converts four test feeds, checks each against both schemas, and runs Greenlight's 13 EPIP rules on the 8-route Sofia sample. The full Sofia feed also passes both schemas. What EPIP cannot carry, such as blocks, pathways and fares, is left out and counted in the report; see [UNMAPPABLE_FEATURES.md](UNMAPPABLE_FEATURES.md).
+**Status.** Since v1.1.0 the output conforms. CI converts four test feeds and 13 small feeds that each hold one oddity real feeds have, checks all of them against both schemas, and runs Greenlight's 13 EPIP rules on all of them. The full Sofia feed also passes both schemas. What EPIP cannot carry, such as blocks, pathways and fares, is left out and counted in the report; see [UNMAPPABLE_FEATURES.md](UNMAPPABLE_FEATURES.md).
 
 The `converter` package's `Convert` is the pre-1.1.0 converter. Its output does not conform and it is deprecated; use `stream.ConvertZip`.
 

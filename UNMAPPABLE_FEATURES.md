@@ -35,3 +35,12 @@ These fit EPIP and are planned for v1.2.0.
 | platforms no trip serves | `StopPlaceType` `other`, no `TransportMode` | `stop_without_trips` |
 | shapes whose stops cannot be placed on them in order | their `ServiceLink`s carry no geometry | `shape_not_cut` |
 | trips with no `stop_times` or no `service_id` | left out | `trip_without_stop_times` |
+| trips whose `route_id` is not in `routes.txt` | left out | `trip_unknown_route_left_out` |
+| trips that call at a `stop_id` that is not a platform in `stops.txt` | left out | `trip_unknown_stop_left_out` |
+| trips whose first or last stop has no time | left out | `trip_without_end_times_left_out` |
+| untimed stops between timed ones | times interpolated by distance between the timed stops around them | `times_interpolated` |
+| platforms whose `parent_station` is missing or not a station | each becomes its own `StopPlace` | `parent_station_not_a_station` |
+| transfers whose stop is not a platform or station | left out | `transfer_unknown_stop_left_out` |
+| trip-to-trip transfers whose trip is not in the output, or whose stop the trip does not reach | left out | `interchange_unknown_trip_left_out`, `interchange_unknown_stop_left_out` |
+| `route_type` with no EPIP mode (taxi, self-drive, miscellaneous, unknown codes) | written as `bus` | `route_type_unknown` |
+| text that is not valid UTF-8, or holds control characters XML forbids | each bad character becomes U+FFFD | none |

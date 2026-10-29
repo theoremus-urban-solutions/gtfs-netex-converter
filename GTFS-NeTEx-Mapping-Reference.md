@@ -40,7 +40,7 @@ A route becomes a `Line` only when at least one trip runs on it.
 | `route_long_name` | `Name` |
 | `route_short_name` | `ShortName` and `PublicCode` |
 | `route_desc` | `Description` |
-| `route_type` | `TransportMode` (0 tram, 1 metro, 2 rail, 3 bus, 4 water, 5 and 6 cableway, 7 funicular, 11 trolleyBus, 12 rail), and one `VehicleType` per type |
+| `route_type` | `TransportMode` (0 tram, 1 metro, 2 rail, 3 bus, 4 water, 5 and 6 cableway, 7 funicular, 11 trolleyBus, 12 rail; extended types by hundred: 100 and 300 rail, 200 coach, 400 to 600 metro, 700 bus, 800 trolleyBus, 900 tram, 1000 and 1200 water, 1100 air, 1300 cableway, 1400 funicular), and one `VehicleType` per type |
 | `route_url` | `Url` |
 | `route_color`, `route_text_color` | `Presentation` `Colour`, `TextColour` |
 | `agency_id` | `AuthorityRef` and `additionalOperators/OperatorRef` |
@@ -54,6 +54,7 @@ Trips that share route, direction, stops, shape, headsigns and pickup and drop-o
 | GTFS | NeTEx |
 |---|---|
 | trip | `ServiceJourney` |
+| `route_id` | `ServiceJourneyPattern/RouteView/LineRef`, so the line is read from the pattern without the `Route` |
 | `trip_short_name` | `ServiceJourney/Name` (EPIP has no `PublicCode` here) |
 | `service_id` | `dayTypes/DayTypeRef` |
 | `trip_headsign` | `DestinationDisplay`, referenced from the journey pattern |
@@ -61,7 +62,7 @@ Trips that share route, direction, stops, shape, headsigns and pickup and drop-o
 | `bikes_allowed` = 1 or 2 | `facilities/ServiceFacilitySet/LuggageCarriageFacilityList` `cyclesAllowed` or `noCycles` |
 | first `departure_time` | `DepartureTime` and `DepartureDayOffset` |
 | last arrival minus first departure | `JourneyDuration` |
-| `arrival_time`, `departure_time` | `TimetabledPassingTime` `ArrivalTime`, `DepartureTime`, with day offsets after midnight |
+| `arrival_time`, `departure_time` | `TimetabledPassingTime` `ArrivalTime`, `DepartureTime`, with day offsets after midnight; untimed stops get times interpolated by distance |
 | `stop_id` in sequence | `StopPointInJourneyPattern/ScheduledStopPointRef` and `OnwardServiceLinkRef` |
 | `pickup_type`, `drop_off_type` | `ForBoarding` false for 1, `ForAlighting` false for 1, `RequestStop` true for 2 or 3 |
 | `stop_headsign` | `StopPointInJourneyPattern/DestinationDisplayRef` |
@@ -72,7 +73,7 @@ Trips that share route, direction, stops, shape, headsigns and pickup and drop-o
 |---|---|
 | platform (`location_type` 0) | `ScheduledStopPoint`, `Quay` and a `PassengerStopAssignment` linking them |
 | station (`location_type` 1) | `StopPlace` holding its child platforms as `Quay`s |
-| platform without `parent_station` | its own `StopPlace` with one `Quay` |
+| platform without `parent_station`, or whose parent is not a station | its own `StopPlace` with one `Quay` |
 | `stop_name`, `stop_lat`, `stop_lon` | `Name` and `Location` / `Centroid` |
 | `stop_code` | `ScheduledStopPoint/PublicCode` |
 | `platform_code` | `Quay/PublicCode` |
@@ -100,7 +101,8 @@ Each trip's shape is cut at its stops. Each stop is placed on the shape, never m
 | GTFS | NeTEx |
 |---|---|
 | stop to stop, `transfer_type` 0, 1 or 2 | `Connection` with `WalkTransferDuration/DefaultDuration` = `min_transfer_time` seconds |
-| trip to trip | `ServiceJourneyInterchange` |
+| a station as `from_stop_id` or `to_stop_id` | one `Connection` per pair of its platforms; a platform-level row for the same pair wins |
+| trip to trip | `ServiceJourneyInterchange`; an empty or station stop resolves to the platform where the trip calls |
 | trip to trip, `transfer_type` 2 | `StandardTransferTime` = `min_transfer_time` |
 | trip to trip, `transfer_type` 4 or 5 | `StaySeated` true or false |
 | `transfer_type` 3, route to route, the guarantee of type 1 | left out, see [UNMAPPABLE_FEATURES.md](UNMAPPABLE_FEATURES.md) |
