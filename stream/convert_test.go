@@ -188,6 +188,55 @@ func TestMissingStopTimes(t *testing.T) {
 	}
 }
 
+// TestInferDirections checks a feed with no direction_id, whose two directions use different stop ids with the same names, gets one named Route per direction.
+func TestInferDirections(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range map[string]string{
+		"agency.txt":   "agency_id,agency_name,agency_url,agency_timezone\nA,Agency,https://a.example,Europe/Sofia\n",
+		"routes.txt":   "route_id,agency_id,route_short_name,route_long_name,route_type\nR,A,7,Alpha - Gamma - Alpha,3\n",
+		"stops.txt":    "stop_id,stop_name,stop_lat,stop_lon\nA1,Alpha,42.0,23.0\nB1,Beta,42.01,23.0\nC1,Gamma,42.02,23.0\nA2,ALPHA,42.0,23.001\nB2,Beta,42.01,23.001\nC2,Gamma,42.02,23.001\n",
+		"calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nS,1,1,1,1,1,0,0,20260101,20261231\n",
+		"trips.txt":    "route_id,service_id,trip_id\nR,S,T1\nR,S,T2\nR,S,T3\n",
+		"stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
+			"T1,08:00:00,08:00:00,A1,1\nT1,08:05:00,08:05:00,B1,2\nT1,08:10:00,08:10:00,C1,3\n" +
+			"T2,09:00:00,09:00:00,C2,1\nT2,09:05:00,09:05:00,B2,2\nT2,09:10:00,09:10:00,A2,3\n" +
+			"T3,10:00:00,10:00:00,B2,1\nT3,10:05:00,10:05:00,A2,2\n",
+	} {
+		w, _ := zw.Create(name)
+		_, _ = w.Write([]byte(body))
+	}
+	_ = zw.Close()
+	var out bytes.Buffer
+	rep, err := ConvertZip(context.Background(), bytes.NewReader(buf.Bytes()), int64(buf.Len()), &out, testCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := out.String()
+	for _, s := range []string{
+		`route_R_0::" version="1"><Name>Alpha - Gamma</Name>`,
+		`route_R_1::" version="1"><Name>Gamma - ALPHA</Name>`,
+		`<Name>7</Name><ShortName>7</ShortName><Description>Alpha - Gamma - Alpha</Description>`,
+	} {
+		if !strings.Contains(doc, s) {
+			t.Errorf("output has no %s", s)
+		}
+	}
+	if n := strings.Count(doc, `<DirectionRef ref="BG::Direction:direction_1::"`); n != 4 {
+		t.Errorf("got %d refs to direction 1, want 4: the Route, the Line, and the patterns of T2 and T3", n)
+	}
+	warn := map[string]int{}
+	for _, w := range rep.Warnings {
+		warn[w.Type] = w.Count
+	}
+	if warn["direction_inferred"] != 3 || warn["direction_unknown_set_to_0"] != 0 {
+		t.Errorf("report warnings %v, want direction_inferred 3 and no direction_unknown_set_to_0", warn)
+	}
+	if msg := danglingRefs(out.Bytes()); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
 func attr(el xml.StartElement, name string) string {
 	for _, a := range el.Attr {
 		if a.Name.Local == name {

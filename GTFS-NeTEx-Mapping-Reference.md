@@ -37,15 +37,17 @@ A route becomes a `Line` only when at least one trip runs on it.
 | GTFS | NeTEx `Line` |
 |---|---|
 | `route_id` | `keyList` key `gtfs_route_id`, and `PrivateCode` |
-| `route_long_name` | `Name` |
-| `route_short_name` | `ShortName` and `PublicCode` |
-| `route_desc` | `Description` |
+| `route_short_name` | `Name`, `ShortName` and `PublicCode` |
+| `route_long_name` | `Description`, or `Name` when the route has no short name |
+| `route_desc` | `Description`, in place of the long name |
 | `route_type` | `TransportMode` (0 tram, 1 metro, 2 rail, 3 bus, 4 water, 5 and 6 cableway, 7 funicular, 11 trolleyBus, 12 rail; extended types by hundred: 100 and 300 rail, 200 coach, 400 to 600 metro, 700 bus, 800 trolleyBus, 900 tram, 1000 and 1200 water, 1100 air, 1300 cableway, 1400 funicular), and one `VehicleType` per type |
 | `route_url` | `Url` |
 | `route_color`, `route_text_color` | `Presentation` `Colour`, `TextColour` |
 | `agency_id` | `AuthorityRef` and `additionalOperators/OperatorRef` |
 
-Each route and `direction_id` pair becomes one `Route`, whose points follow its longest journey pattern.
+Each route and `direction_id` pair becomes one `Route`, whose points follow its longest journey pattern. Its `Name` is the first and last stop of those points, as `first - last`.
+
+When no trip of a route has a `direction_id`, each trip gets one: 0 when it visits the stop names of the route's longest trip in the same order, 1 when in reverse. Stop names are compared, not stop ids, because feeds often give each side of a street its own stop. A trip sharing no stops with the longest trip is compared with the longest trip going back, and is put in direction 0 when it shares none with that either. The report counts both cases as `direction_inferred` and `direction_unknown_set_to_0`.
 
 ### trips.txt and stop_times.txt
 

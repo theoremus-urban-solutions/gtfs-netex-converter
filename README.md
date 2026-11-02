@@ -8,7 +8,7 @@ Transforms public transit data from GTFS format (used by Google Maps, transit ap
 
 **Key Features:**
 - ✅ **EPIP output**: passes the strict EPIP schema and the NeTEx v2.0.0 schema, checked in CI
-- 🚀 **Streaming**: Sofia's 1.6M-record feed converts in about 5 s with under 200 MB of memory
+- 🚀 **Streaming**: Sofia's 1.6M-record feed converts in about 5 s with about 210 MB of memory
 - 📅 **Exact calendars**: every service day survives the conversion, checked day by day in the tests
 - 📊 **Reporting**: JSON report with counts, timings, and every piece of GTFS left out
 
@@ -162,12 +162,12 @@ func main() {
 
 ## Performance
 
-Full Sofia feed (1.6M GTFS records, 29,156 trips), measured on 2026-10-28 with `/usr/bin/time -v`:
+Full Sofia feed (1.6M GTFS records, 29,156 trips), measured on 2026-11-02 with `/usr/bin/time -v`:
 
 | Output | Time | Peak memory | Size |
 |--------|------|-------------|------|
-| XML | 5.3 s | 194 MB | 339 MB |
-| zip | 8.1 s | 197 MB | 20 MB |
+| XML | 5.5 s | 214 MB | 339 MB |
+| zip | 8.4 s | 209 MB | 20 MB |
 
 The pre-1.1.0 `Convert` needed about 1.1 GB for the same feed.
 

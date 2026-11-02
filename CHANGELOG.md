@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Report warnings that count everything EPIP cannot carry: blocks, pathways, fares, "transfer not possible", route-level transfers and timed-transfer guarantees.
 - CLI: `-input` takes a GTFS zip; `-output` ending in `.zip` writes a zip; `-publication-time` fixes the timestamp.
 - CI job that checks the test feeds against both schemas and runs Greenlight's EPIP rules.
+- Feeds with no `direction_id` get a `Route` for each direction: a trip's direction comes from the order it visits the stop names of its route's longest trip. Full Sofia goes from 142 one-way Routes to 278.
 
 ### Changed
 - The CLI uses `stream` for zip and folder input alike. `-location-system`, `-fare-frame`, `-general-frame`, `-streaming` and `-batch-size` are accepted and ignored.
@@ -22,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Each `ServiceJourneyPattern` names its line with `RouteView/LineRef` instead of `RouteRef`, as NAPCORE's "LineRef should be filled" asks.
 - Feeds that break GTFS rules still give valid EPIP: bad UTF-8 and forbidden control characters become U+FFFD, station-level transfers expand to platforms, trip-to-trip interchange IDs include both stops, platforms with a missing station become their own `StopPlace`, and trips on unknown routes or stops are left out and counted.
 - Extended route types (100 to 1400) map to their mode instead of `bus`.
+- A `Line`'s `Name` is `route_short_name`, such as `94`, and `route_long_name` moves to `Description`. A route with no short name keeps its long name as `Name`.
+- Each `Route` is named after its first and last stop, such as `СУ СВ.КЛИМЕНТ ОХРИДСКИ - СТУДЕНТСКИ ГРАД`.
 - Untimed stops get times interpolated by distance, as Greenlight's `everyStopPointHaveArrivalAndDepartureTime` needs.
 - Transfers: walk time is `WalkTransferDuration`; trip-to-trip transfers are `ServiceJourneyInterchange` with `StaySeated` or `StandardTransferTime`.
 - Stops no trip serves get `StopPlaceType` `other`; routes with no trips are no longer written as `Line`s.

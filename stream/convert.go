@@ -381,6 +381,7 @@ func (c *conv) buildPatterns() {
 	for i, id := range c.stopIx.strs {
 		platform[i] = c.locType(id) == 0
 	}
+	inferred := c.inferDirections()
 trips:
 	for _, tr := range c.trips.rows {
 		tid := c.tripIx.ids[c.trips.get(tr, "trip_id")]
@@ -404,7 +405,9 @@ trips:
 			}
 		}
 		dir := c.trips.get(tr, "direction_id")
-		if dir == "" {
+		if d, ok := inferred[tid]; ok {
+			dir = d
+		} else if dir == "" {
 			dir = "0"
 		}
 		sb.Reset()
@@ -437,6 +440,123 @@ trips:
 	c.note("trip_unknown_route_left_out", "Trips whose route_id is not in routes.txt are left out.", noRoute)
 	c.note("trip_unknown_stop_left_out", "Trips that call at a stop_id that is not a platform in stops.txt are left out.", noStop)
 	c.note("trip_without_end_times_left_out", "Trips whose first or last stop has no time are left out.", noTimes)
+}
+
+// inferDirections gives each trip of a route with no direction_id at all direction 0 when it visits the stop names of the route's longest trip in order, and 1 when in reverse.
+func (c *conv) inferDirections() map[uint32]string {
+	byRoute := map[string][]uint32{}
+	var order []string
+	given := map[string]bool{}
+	for _, tr := range c.trips.rows {
+		rid := c.trips.get(tr, "route_id")
+		if c.trips.get(tr, "direction_id") != "" {
+			given[rid] = true
+		}
+		tid := c.tripIx.ids[c.trips.get(tr, "trip_id")]
+		if _, ok := c.routeByID[rid]; !ok || c.span[tid][0] < 0 {
+			continue
+		}
+		if _, ok := byRoute[rid]; !ok {
+			order = append(order, rid)
+		}
+		byRoute[rid] = append(byRoute[rid], tid)
+	}
+	// Names, not ids, because feeds often give each side of a street its own stop_id.
+	name := make([]string, len(c.stopIx.strs))
+	for i := range name {
+		name[i] = strings.ToUpper(strings.TrimSpace(c.stopName(uint32(i)))) //nolint:gosec // interner ids fit in uint32
+	}
+	dirs := map[uint32]string{}
+	unplaced := 0
+	for _, rid := range order {
+		if given[rid] {
+			continue
+		}
+		tids := byRoute[rid]
+		fwd := c.longestTrip(tids, func(uint32) bool { return true })
+		pos := c.positions(fwd, name)
+		var rest []uint32
+		for _, t := range tids {
+			f, b := c.steps(t, pos, name)
+			switch {
+			case f+b == 0:
+				rest = append(rest, t)
+			case f >= b:
+				dirs[t] = "0"
+			default:
+				dirs[t] = "1"
+			}
+		}
+		// A trip sharing no stretch with the longest trip is compared with the longest trip going back.
+		back := c.longestTrip(tids, func(t uint32) bool { return dirs[t] == "1" })
+		var bpos map[string]int
+		if dirs[back] == "1" {
+			bpos = c.positions(back, name)
+		}
+		for _, t := range rest {
+			dirs[t] = "0"
+			if f, b := c.steps(t, bpos, name); f+b > 0 && f >= b {
+				dirs[t] = "1"
+			} else if f+b == 0 {
+				unplaced++
+			}
+		}
+	}
+	c.note("direction_inferred", "Trips of routes with no direction_id get a direction from the order they visit the stops of the route's longest trip.", len(dirs))
+	c.note("direction_unknown_set_to_0", "Trips with no direction_id that share no stretch of stops with their route's longest trip either way are put in direction 0.", unplaced)
+	return dirs
+}
+
+// longestTrip returns the trip with the most stops among those keep accepts, the first one on a tie.
+func (c *conv) longestTrip(tids []uint32, keep func(uint32) bool) uint32 {
+	best, n := tids[0], -1
+	for _, t := range tids {
+		if sp := c.span[t]; keep(t) && sp[1]-sp[0] > n {
+			best, n = t, sp[1]-sp[0]
+		}
+	}
+	return best
+}
+
+// positions maps each stop name of a trip to where it first appears.
+func (c *conv) positions(tid uint32, name []string) map[string]int {
+	pos := map[string]int{}
+	sp := c.span[tid]
+	for j := sp[0]; j < sp[1]; j++ {
+		if _, ok := pos[name[c.rows[j].stop]]; !ok {
+			pos[name[c.rows[j].stop]] = j - sp[0]
+		}
+	}
+	return pos
+}
+
+// steps counts how many moves of a trip between stops found in pos go forward and how many go back.
+func (c *conv) steps(tid uint32, pos map[string]int, name []string) (fwd, back int) {
+	sp, last := c.span[tid], -1
+	for j := sp[0]; j < sp[1]; j++ {
+		p, ok := pos[name[c.rows[j].stop]]
+		if !ok {
+			continue
+		}
+		if last >= 0 && p > last {
+			fwd++
+		} else if last >= 0 && p < last {
+			back++
+		}
+		last = p
+	}
+	return fwd, back
+}
+
+// stopName returns a stop's stop_name, or its stop_id when it has none.
+func (c *conv) stopName(stop uint32) string {
+	id := c.stopIx.strs[stop]
+	if r, ok := c.stopByID[id]; ok {
+		if n := c.stops.get(r, "stop_name"); n != "" {
+			return n
+		}
+	}
+	return id
 }
 
 // fillTimes copies a lone arrival or departure to the other side, and gives untimed stops times interpolated by distance between the timed stops around them, as GTFS asks consumers to do.
@@ -973,11 +1093,12 @@ func (c *conv) serviceFrame() {
 		rid, dir := parts[0], parts[1]
 		id := c.id("Route", "route_"+rid+"_"+dir)
 		routesOfLine[rid] = append(routesOfLine[rid], id)
+		sp := c.span[c.patterns[best[rd]].trip]
 		o.open("Route", id)
+		o.el("Name", c.stopName(c.rows[sp[0]].stop)+" - "+c.stopName(c.rows[sp[1]-1].stop))
 		o.ref("LineRef", c.id("Line", "line_"+rid))
 		o.ref("DirectionRef", c.id("Direction", "direction_"+dir))
 		o.s("<pointsInSequence>")
-		sp := c.span[c.patterns[best[rd]].trip]
 		for j := sp[0]; j < sp[1]; j++ {
 			n := strconv.Itoa(j - sp[0] + 1)
 			o.s(`<PointOnRoute id="`)
@@ -1009,9 +1130,17 @@ func (c *conv) serviceFrame() {
 		o.s("<keyList><KeyValue><Key>gtfs_route_id</Key>")
 		o.el("Value", rid)
 		o.s("</KeyValue></keyList>")
-		o.el("Name", c.routes.get(r, "route_long_name"))
-		o.elOpt("ShortName", c.routes.get(r, "route_short_name"))
-		o.elOpt("Description", c.routes.get(r, "route_desc"))
+		// The short name is the line's name; the long name moves to Description unless route_desc fills it.
+		short, long, desc := c.routes.get(r, "route_short_name"), c.routes.get(r, "route_long_name"), c.routes.get(r, "route_desc")
+		name := short
+		if name == "" {
+			name = long
+		} else if desc == "" {
+			desc = long
+		}
+		o.el("Name", name)
+		o.elOpt("ShortName", short)
+		o.elOpt("Description", desc)
 		o.el("TransportMode", mode(atoiDef(c.routes.get(r, "route_type"), 3)))
 		o.elOpt("Url", c.routes.get(r, "route_url"))
 		o.el("PublicCode", c.routes.get(r, "route_short_name"))
