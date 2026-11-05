@@ -237,6 +237,48 @@ func TestInferDirections(t *testing.T) {
 	}
 }
 
+func TestAllowedDirections(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range map[string]string{
+		"agency.txt":   "agency_id,agency_name,agency_url,agency_timezone\nA,Agency,https://a.example,Europe/Sofia\n",
+		"routes.txt":   "route_id,agency_id,route_short_name,route_type\nONE,A,1,3\nBOTH,A,2,3\n",
+		"stops.txt":    "stop_id,stop_name,stop_lat,stop_lon\nS1,Alpha,42.0,23.0\nS2,Beta,42.01,23.0\n",
+		"calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nS,1,1,1,1,1,1,1,20260101,20261231\n",
+		"trips.txt":    "route_id,service_id,trip_id,direction_id\nONE,S,T1,0\nBOTH,S,T2,0\nBOTH,S,T3,1\n",
+		"stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
+			"T1,08:00:00,08:00:00,S1,1\nT1,08:05:00,08:05:00,S2,2\n" +
+			"T2,09:00:00,09:00:00,S1,1\nT2,09:05:00,09:05:00,S2,2\n" +
+			"T3,10:00:00,10:00:00,S2,1\nT3,10:05:00,10:05:00,S1,2\n",
+	} {
+		w, _ := zw.Create(name)
+		_, _ = w.Write([]byte(body))
+	}
+	_ = zw.Close()
+	cfg := testCfg
+	cfg.Codespace = "PLV"
+	var out bytes.Buffer
+	if _, err := ConvertZip(context.Background(), bytes.NewReader(buf.Bytes()), int64(buf.Len()), &out, cfg); err != nil {
+		t.Fatal(err)
+	}
+	doc := out.String()
+	const prefix = `<AllowedLineDirection id="PLV::AllowedLineDirection:allowed_direction_`
+	for _, s := range []string{prefix + `ONE_0::"`, prefix + `BOTH_0::"`, prefix + `BOTH_1::"`} {
+		if !strings.Contains(doc, s) {
+			t.Errorf("output has no %s", s)
+		}
+	}
+	if strings.Contains(doc, "allowed_direction_ONE_1") {
+		t.Error("line ONE runs only direction 0 but allows direction 1")
+	}
+	if got := strings.Count(doc, "<AllowedLineDirection "); got != 3 {
+		t.Errorf("got %d AllowedLineDirection, want 3", got)
+	}
+	if msg := danglingRefs(out.Bytes()); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
 func attr(el xml.StartElement, name string) string {
 	for _, a := range el.Attr {
 		if a.Name.Local == name {

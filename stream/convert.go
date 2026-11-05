@@ -24,7 +24,7 @@ import (
 )
 
 // Version is written into the report.
-const Version = "1.1.0"
+const Version = "1.1.1"
 
 // Config holds the values a GTFS feed does not carry.
 type Config struct {
@@ -1088,11 +1088,13 @@ func (c *conv) serviceFrame() {
 	}
 	o.s("</routePoints><routes>")
 	routesOfLine := map[string][]string{}
+	dirsOfLine := map[string][]string{}
 	for _, rd := range rdOrder {
 		parts := strings.SplitN(rd, "\x00", 2)
 		rid, dir := parts[0], parts[1]
 		id := c.id("Route", "route_"+rid+"_"+dir)
 		routesOfLine[rid] = append(routesOfLine[rid], id)
+		dirsOfLine[rid] = append(dirsOfLine[rid], dir)
 		sp := c.span[c.patterns[best[rd]].trip]
 		o.open("Route", id)
 		o.el("Name", c.stopName(c.rows[sp[0]].stop)+" - "+c.stopName(c.rows[sp[1]-1].stop))
@@ -1160,10 +1162,8 @@ func (c *conv) serviceFrame() {
 			o.s("</Presentation>")
 		}
 		o.s("<allowedDirections>")
-		for _, d := range []string{"0", "1"} {
-			o.s(`<AllowedLineDirection id="`)
-			o.e("allowed_direction_" + rid + "_" + d)
-			o.s(`" version="1">`)
+		for _, d := range dirsOfLine[rid] {
+			o.open("AllowedLineDirection", c.id("AllowedLineDirection", "allowed_direction_"+rid+"_"+d))
 			o.ref("DirectionRef", c.id("Direction", "direction_"+d))
 			o.s("</AllowedLineDirection>")
 		}
